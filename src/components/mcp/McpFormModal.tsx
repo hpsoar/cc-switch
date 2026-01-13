@@ -65,6 +65,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
     claude: boolean;
     codex: boolean;
     gemini: boolean;
+    opencode: boolean;
   }>(() => {
     if (initialData?.apps) {
       return { ...initialData.apps };
@@ -73,6 +74,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
       claude: defaultEnabledApps.includes("claude"),
       codex: defaultEnabledApps.includes("codex"),
       gemini: defaultEnabledApps.includes("gemini"),
+      opencode: defaultEnabledApps.includes("opencode"),
     };
   });
 
@@ -557,6 +559,22 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                     className="text-sm text-foreground cursor-pointer select-none"
                   >
                     {t("mcp.unifiedPanel.apps.gemini")}
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="enable-opencode"
+                    checked={enabledApps.opencode}
+                    onCheckedChange={(checked: boolean) =>
+                      setEnabledApps({ ...enabledApps, opencode: checked })
+                    }
+                  />
+                  <label
+                    htmlFor="enable-opencode"
+                    className="text-sm text-foreground cursor-pointer select-none"
+                  >
+                    {t("mcp.unifiedPanel.apps.opencode")}
                   </label>
                 </div>
               </div>

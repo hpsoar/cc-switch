@@ -368,6 +368,7 @@ impl ProxyService {
             AppType::Claude => self.read_claude_live()?,
             AppType::Codex => self.read_codex_live()?,
             AppType::Gemini => self.read_gemini_live()?,
+            AppType::OpenCode => crate::opencode_config::read_opencode_config().map_err(|e| e.to_string())?,
         };
 
         self.sync_live_config_to_provider(app_type, &live_config)

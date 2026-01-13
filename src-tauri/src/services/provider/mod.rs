@@ -689,6 +689,44 @@ impl ProviderService {
                 use crate::gemini_config::validate_gemini_settings;
                 validate_gemini_settings(&provider.settings_config)?
             }
+            AppType::OpenCode => {
+                let settings = provider.settings_config.as_object().ok_or_else(|| {
+                    AppError::localized(
+                        "provider.opencode.settings.not_object",
+                        "OpenCode 配置必须是 JSON 对象",
+                        "OpenCode configuration must be a JSON object",
+                    )
+                })?;
+
+                if !settings.contains_key("name") {
+                    return Err(AppError::localized(
+                        "provider.opencode.name.missing",
+                        format!("供应商 {} 缺少 name 字段", provider.id),
+                        format!("Provider {} is missing name field", provider.id),
+                    ));
+                }
+                if !settings.contains_key("npm") {
+                    return Err(AppError::localized(
+                        "provider.opencode.npm.missing",
+                        format!("供应商 {} 缺少 npm 字段", provider.id),
+                        format!("Provider {} is missing npm field", provider.id),
+                    ));
+                }
+                if !settings.contains_key("models") {
+                    return Err(AppError::localized(
+                        "provider.opencode.models.missing",
+                        format!("供应商 {} 缺少 models 字段", provider.id),
+                        format!("Provider {} is missing models field", provider.id),
+                    ));
+                }
+                if !settings.contains_key("options") {
+                    return Err(AppError::localized(
+                        "provider.opencode.options.missing",
+                        format!("供应商 {} 缺少 options 字段", provider.id),
+                        format!("Provider {} is missing options field", provider.id),
+                    ));
+                }
+            }
         }
 
         // Validate and clean UsageScript configuration (common for all app types)

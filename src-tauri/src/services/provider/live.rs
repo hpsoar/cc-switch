@@ -4,12 +4,13 @@
 
 use std::collections::HashMap;
 
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 
 use crate::app_config::AppType;
 use crate::codex_config::{get_codex_auth_path, get_codex_config_path};
 use crate::config::{delete_file, get_claude_settings_path, read_json_file, write_json_file};
 use crate::error::AppError;
+use crate::opencode_config::{read_opencode_config, write_opencode_config};
 use crate::provider::Provider;
 use crate::services::mcp::McpService;
 use crate::store::AppState;
@@ -32,6 +33,9 @@ pub(crate) enum LiveSnapshot {
     },
     Gemini {
         env: Option<HashMap<String, String>>,
+        config: Option<Value>,
+    },
+    OpenCode {
         config: Option<Value>,
     },
 }
@@ -117,8 +121,21 @@ pub(crate) fn write_live_snapshot(app_type: &AppType, provider: &Provider) -> Re
             std::fs::write(&config_path, config_str).map_err(|e| AppError::io(&config_path, e))?;
         }
         AppType::Gemini => {
-            // Delegate to write_gemini_live which handles env file writing correctly
             write_gemini_live(provider)?;
+        }
+        AppType::OpenCode => {
+            let mut config = read_opencode_config()?;
+            let config_obj = config
+                .as_object_mut()
+                .ok_or_else(|| AppError::Config("OpenCode 配置必须是 JSON 对象".to_string()))?;
+            let provider_map = config_obj
+                .entry("provider")
+                .or_insert_with(|| json!({}))
+                .as_object_mut()
+                .ok_or_else(|| AppError::Config("OpenCode provider 字段必须是对象".to_string()))?;
+
+            provider_map.insert(provider.id.clone(), provider.settings_config.clone());
+            write_opencode_config(&Value::Object(config_obj.clone()))?;
         }
     }
     Ok(())
@@ -130,8 +147,12 @@ pub(crate) fn write_live_snapshot(app_type: &AppType, provider: &Provider) -> Re
 /// 优先从本地 settings 读取，验证后 fallback 到数据库的 is_current 字段。
 /// 这确保了配置导入后无效 ID 会自动 fallback 到数据库。
 pub fn sync_current_to_live(state: &AppState) -> Result<(), AppError> {
-    for app_type in [AppType::Claude, AppType::Codex, AppType::Gemini] {
-        // Use validated effective current provider
+    for app_type in [
+        AppType::Claude,
+        AppType::Codex,
+        AppType::Gemini,
+        AppType::OpenCode,
+    ] {
         let current_id =
             match crate::settings::get_effective_current_provider(&state.db, &app_type)? {
                 Some(id) => id,
@@ -142,18 +163,13 @@ pub fn sync_current_to_live(state: &AppState) -> Result<(), AppError> {
         if let Some(provider) = providers.get(&current_id) {
             write_live_snapshot(&app_type, provider)?;
         }
-        // Note: get_effective_current_provider already validates existence,
-        // so providers.get() should always succeed here
     }
 
-    // MCP sync
     McpService::sync_all_enabled(state)?;
 
-    // Skill sync
     for app_type in [AppType::Claude, AppType::Codex, AppType::Gemini] {
         if let Err(e) = crate::services::skill::SkillService::sync_to_app(&state.db, &app_type) {
             log::warn!("同步 Skill 到 {app_type:?} 失败: {e}");
-            // Continue syncing other apps, don't abort
         }
     }
 
@@ -192,7 +208,6 @@ pub fn read_live_settings(app_type: AppType) -> Result<Value, AppError> {
                 env_to_json, get_gemini_env_path, get_gemini_settings_path, read_gemini_env,
             };
 
-            // Read .env file (environment variables)
             let env_path = get_gemini_env_path();
             if !env_path.exists() {
                 return Err(AppError::localized(
@@ -206,7 +221,6 @@ pub fn read_live_settings(app_type: AppType) -> Result<Value, AppError> {
             let env_json = env_to_json(&env_map);
             let env_obj = env_json.get("env").cloned().unwrap_or_else(|| json!({}));
 
-            // Read settings.json file (MCP config etc.)
             let settings_path = get_gemini_settings_path();
             let config_obj = if settings_path.exists() {
                 read_json_file(&settings_path)?
@@ -214,12 +228,12 @@ pub fn read_live_settings(app_type: AppType) -> Result<Value, AppError> {
                 json!({})
             };
 
-            // Return complete structure: { "env": {...}, "config": {...} }
             Ok(json!({
                 "env": env_obj,
                 "config": config_obj
             }))
         }
+        AppType::OpenCode => read_opencode_config(),
     }
 }
 
@@ -267,7 +281,6 @@ pub fn import_default_config(state: &AppState, app_type: AppType) -> Result<bool
                 env_to_json, get_gemini_env_path, get_gemini_settings_path, read_gemini_env,
             };
 
-            // Read .env file (environment variables)
             let env_path = get_gemini_env_path();
             if !env_path.exists() {
                 return Err(AppError::localized(
@@ -281,7 +294,6 @@ pub fn import_default_config(state: &AppState, app_type: AppType) -> Result<bool
             let env_json = env_to_json(&env_map);
             let env_obj = env_json.get("env").cloned().unwrap_or_else(|| json!({}));
 
-            // Read settings.json file (MCP config etc.)
             let settings_path = get_gemini_settings_path();
             let config_obj = if settings_path.exists() {
                 read_json_file(&settings_path)?
@@ -289,12 +301,12 @@ pub fn import_default_config(state: &AppState, app_type: AppType) -> Result<bool
                 json!({})
             };
 
-            // Return complete structure: { "env": {...}, "config": {...} }
             json!({
                 "env": env_obj,
                 "config": config_obj
             })
         }
+        AppType::OpenCode => read_opencode_config()?,
     };
 
     let mut provider = Provider::with_id(
@@ -310,7 +322,7 @@ pub fn import_default_config(state: &AppState, app_type: AppType) -> Result<bool
         .db
         .set_current_provider(app_type.as_str(), &provider.id)?;
 
-    Ok(true) // 真正导入了
+    Ok(true)
 }
 
 /// Write Gemini live configuration with authentication handling

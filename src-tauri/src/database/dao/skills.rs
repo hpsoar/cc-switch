@@ -22,7 +22,7 @@ impl Database {
         let mut stmt = conn
             .prepare(
                 "SELECT id, name, description, directory, repo_owner, repo_name, repo_branch,
-                        readme_url, enabled_claude, enabled_codex, enabled_gemini, installed_at
+                        readme_url, enabled_claude, enabled_codex, enabled_gemini, enabled_opencode, installed_at
                  FROM skills ORDER BY name ASC",
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
@@ -42,8 +42,9 @@ impl Database {
                         claude: row.get(8)?,
                         codex: row.get(9)?,
                         gemini: row.get(10)?,
+                        opencode: row.get(11)?,
                     },
-                    installed_at: row.get(11)?,
+                    installed_at: row.get(12)?,
                 })
             })
             .map_err(|e| AppError::Database(e.to_string()))?;
@@ -62,7 +63,7 @@ impl Database {
         let mut stmt = conn
             .prepare(
                 "SELECT id, name, description, directory, repo_owner, repo_name, repo_branch,
-                        readme_url, enabled_claude, enabled_codex, enabled_gemini, installed_at
+                        readme_url, enabled_claude, enabled_codex, enabled_gemini, enabled_opencode, installed_at
                  FROM skills WHERE id = ?1",
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
@@ -81,8 +82,9 @@ impl Database {
                     claude: row.get(8)?,
                     codex: row.get(9)?,
                     gemini: row.get(10)?,
+                    opencode: row.get(11)?,
                 },
-                installed_at: row.get(11)?,
+                installed_at: row.get(12)?,
             })
         });
 

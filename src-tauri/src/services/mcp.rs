@@ -37,6 +37,9 @@ impl McpService {
         if prev_apps.gemini && !server.apps.gemini {
             Self::remove_server_from_app(state, &server.id, &AppType::Gemini)?;
         }
+        if prev_apps.opencode && !server.apps.opencode {
+            Self::remove_server_from_app(state, &server.id, &AppType::OpenCode)?;
+        }
 
         // 同步到各个启用的应用
         Self::sync_server_to_apps(state, &server)?;
@@ -107,25 +110,18 @@ impl McpService {
                 mcp::sync_single_server_to_claude(&Default::default(), &server.id, &server.server)?;
             }
             AppType::Codex => {
-                // Codex uses TOML format, must use the correct function
                 mcp::sync_single_server_to_codex(&Default::default(), &server.id, &server.server)?;
             }
             AppType::Gemini => {
                 mcp::sync_single_server_to_gemini(&Default::default(), &server.id, &server.server)?;
             }
-        }
-        Ok(())
-    }
-
-    /// 从所有曾启用过该服务器的应用中移除
-    fn remove_server_from_all_apps(
-        state: &AppState,
-        id: &str,
-        server: &McpServer,
-    ) -> Result<(), AppError> {
-        // 从所有曾启用的应用中移除
-        for app in server.apps.enabled_apps() {
-            Self::remove_server_from_app(state, id, &app)?;
+            AppType::OpenCode => {
+                crate::opencode_mcp::sync_single_server_to_opencode(
+                    &Default::default(),
+                    &server.id,
+                    &server.server,
+                )?;
+            }
         }
         Ok(())
     }
@@ -135,6 +131,7 @@ impl McpService {
             AppType::Claude => mcp::remove_server_from_claude(id)?,
             AppType::Codex => mcp::remove_server_from_codex(id)?,
             AppType::Gemini => mcp::remove_server_from_gemini(id)?,
+            AppType::OpenCode => crate::opencode_mcp::remove_server_from_opencode(id)?,
         }
         Ok(())
     }
@@ -306,6 +303,32 @@ impl McpService {
                     // 同步到对应应用 live 配置
                     Self::sync_server_to_apps(state, &to_save)?;
                 }
+            }
+        }
+
+        Ok(new_count)
+    }
+
+    pub fn import_from_opencode(state: &AppState) -> Result<usize, AppError> {
+        let mut temp_config = crate::app_config::MultiAppConfig::default();
+        let count = crate::opencode_mcp::import_from_opencode()?;
+
+        let mut new_count = 0;
+        if count > 0 {
+            let mut existing = state.db.get_all_mcp_servers()?;
+            for (id, server_config) in &temp_config.mcp.servers.unwrap_or_default() {
+                let to_save = if let Some(existing_server) = existing.get(id) {
+                    let mut merged = existing_server.clone();
+                    merged.apps.opencode = true;
+                    merged
+                } else {
+                    new_count += 1;
+                    server_config.clone()
+                };
+
+                state.db.save_mcp_server(&to_save)?;
+                existing.insert(to_save.id.clone(), to_save.clone());
+                Self::sync_server_to_apps(state, &to_save)?;
             }
         }
 

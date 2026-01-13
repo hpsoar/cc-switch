@@ -13,6 +13,8 @@ mod gemini_config;
 mod gemini_mcp;
 mod init_status;
 mod mcp;
+mod opencode_config;
+mod opencode_mcp;
 mod panic_hook;
 mod prompt;
 mod prompt_files;
@@ -38,6 +40,9 @@ pub use mcp::{
     remove_server_from_codex, remove_server_from_gemini, sync_enabled_to_claude,
     sync_enabled_to_codex, sync_enabled_to_gemini, sync_single_server_to_claude,
     sync_single_server_to_codex, sync_single_server_to_gemini,
+};
+pub use opencode_mcp::{
+    import_from_opencode, remove_server_from_opencode, sync_single_server_to_opencode,
 };
 pub use provider::{Provider, ProviderMeta};
 pub use services::{

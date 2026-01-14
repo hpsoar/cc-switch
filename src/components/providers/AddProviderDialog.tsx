@@ -17,6 +17,7 @@ import { UniversalProviderPanel } from "@/components/universal";
 import { providerPresets } from "@/config/claudeProviderPresets";
 import { codexProviderPresets } from "@/config/codexProviderPresets";
 import { geminiProviderPresets } from "@/config/geminiProviderPresets";
+import { opencodeProviderPresets } from "@/config/opencodeProviderPresets";
 import type { UniversalProviderPreset } from "@/config/universalProviderPresets";
 
 interface AddProviderDialogProps {
@@ -152,6 +153,21 @@ export function AddProviderDialog({
                 preset.endpointCandidates.forEach(addUrl);
               }
             }
+          } else if (appId === "opencode") {
+            const presets = opencodeProviderPresets;
+            const presetIndex = parseInt(
+              values.presetId.replace("opencode-", ""),
+            );
+            if (
+              !isNaN(presetIndex) &&
+              presetIndex >= 0 &&
+              presetIndex < presets.length
+            ) {
+              const preset = presets[presetIndex];
+              if (Array.isArray(preset.endpointCandidates)) {
+                preset.endpointCandidates.forEach(addUrl);
+              }
+            }
           }
         }
 
@@ -174,6 +190,11 @@ export function AddProviderDialog({
           const env = parsedConfig.env as Record<string, any> | undefined;
           if (env?.GOOGLE_GEMINI_BASE_URL) {
             addUrl(env.GOOGLE_GEMINI_BASE_URL);
+          }
+        } else if (appId === "opencode") {
+          const env = parsedConfig.env as Record<string, any> | undefined;
+          if (env?.OPENCODE_BASE_URL) {
+            addUrl(env.OPENCODE_BASE_URL);
           }
         }
 

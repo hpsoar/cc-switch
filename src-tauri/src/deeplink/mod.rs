@@ -39,6 +39,9 @@ pub struct DeepLinkImportRequest {
     pub version: String,
     /// Resource type to import: "provider" | "prompt" | "mcp" | "skill"
     pub resource: String,
+    /// Provider ID
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
 
     // ============ Common fields ============
     /// Target application (claude/codex/gemini) - for provider, prompt, skill

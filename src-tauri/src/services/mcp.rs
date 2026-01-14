@@ -55,7 +55,10 @@ impl McpService {
             state.db.delete_mcp_server(id)?;
 
             // 从所有应用的 live 配置中移除
-            Self::remove_server_from_all_apps(state, id, &server)?;
+            Self::remove_server_from_app(state, id, &AppType::Claude)?;
+            Self::remove_server_from_app(state, id, &AppType::Codex)?;
+            Self::remove_server_from_app(state, id, &AppType::Gemini)?;
+            Self::remove_server_from_app(state, id, &AppType::OpenCode)?;
             Ok(true)
         } else {
             Ok(false)
@@ -314,7 +317,7 @@ impl McpService {
         let count = crate::opencode_mcp::import_from_opencode()?;
 
         let mut new_count = 0;
-        if count > 0 {
+        if !count.is_empty() {
             let mut existing = state.db.get_all_mcp_servers()?;
             for (id, server_config) in &temp_config.mcp.servers.unwrap_or_default() {
                 let to_save = if let Some(existing_server) = existing.get(id) {

@@ -524,7 +524,22 @@ impl ProxyService {
                             } else {
                                 log::info!("已同步 Codex Token 到数据库 (provider: {provider_id})");
                             }
-                        }
+                                }
+                    }
+                }
+            }
+            AppType::OpenCode => {
+                let provider_id =
+                    crate::settings::get_effective_current_provider(&self.db, &AppType::OpenCode)
+                        .map_err(|e| format!("获取 OpenCode 当前供应商失败: {e}"))?;
+
+                if let Some(provider_id) = provider_id {
+                    if let Ok(Some(mut provider)) =
+                        self.db.get_provider_by_id(&provider_id, "opencode")
+                    {
+                        // OpenCode doesn't support token sync like other apps
+                        // For now, we just log and skip
+                        log::info!("OpenCode 供应商 {provider_id} 不需要同步 Token");
                     }
                 }
             }
@@ -760,6 +775,7 @@ impl ProxyService {
             AppType::Claude => ("claude", self.read_claude_live()?),
             AppType::Codex => ("codex", self.read_codex_live()?),
             AppType::Gemini => ("gemini", self.read_gemini_live()?),
+            AppType::OpenCode => ("opencode", crate::opencode_config::read_opencode_config().map_err(|e| e.to_string())?),
         };
 
         let json_str = serde_json::to_string(&config)
@@ -968,6 +984,10 @@ impl ProxyService {
                 self.write_gemini_live(&live_config)?;
                 log::info!("Gemini Live 配置已接管，代理地址: {proxy_url}");
             }
+            AppType::OpenCode => {
+                // OpenCode doesn't support proxy takeover in the same way
+                log::info!("OpenCode 不支持代理接管");
+            }
         }
 
         Ok(())
@@ -1051,6 +1071,10 @@ impl ProxyService {
                     let _ = self.write_gemini_live(&live_config);
                 }
             }
+            AppType::OpenCode => {
+                // OpenCode doesn't support proxy takeover in the same way
+                log::info!("OpenCode 不支持代理接管");
+            }
         }
 
         Ok(())
@@ -1092,7 +1116,7 @@ impl ProxyService {
     async fn restore_live_configs(&self) -> Result<(), String> {
         let mut errors = Vec::new();
 
-        for app_type in [AppType::Claude, AppType::Codex, AppType::Gemini] {
+        for app_type in [AppType::Claude, AppType::Codex, AppType::Gemini, AppType::OpenCode] {
             if let Err(e) = self
                 .restore_live_config_for_app_with_fallback(&app_type)
                 .await
@@ -1162,6 +1186,11 @@ impl ProxyService {
             AppType::Claude => self.write_claude_live(config),
             AppType::Codex => self.write_codex_live(config),
             AppType::Gemini => self.write_gemini_live(config),
+            AppType::OpenCode => {
+                crate::opencode_config::write_opencode_config(config)?;
+                log::info!("OpenCode Live 配置已写入");
+                Ok(())
+            }
         }
     }
 
@@ -1179,6 +1208,7 @@ impl ProxyService {
                 Ok(config) => Self::is_gemini_live_taken_over(&config),
                 Err(_) => false,
             },
+            AppType::OpenCode => false,
         }
     }
 
@@ -1218,6 +1248,11 @@ impl ProxyService {
             AppType::Claude => self.cleanup_claude_takeover_placeholders_in_live(),
             AppType::Codex => self.cleanup_codex_takeover_placeholders_in_live(),
             AppType::Gemini => self.cleanup_gemini_takeover_placeholders_in_live(),
+            AppType::OpenCode => {
+                // OpenCode doesn't support takeover cleanup
+                log::info!("OpenCode 不支持接管清理");
+                Ok(())
+            }
         }
     }
 

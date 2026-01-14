@@ -185,6 +185,18 @@ impl StreamCheckService {
                 )
                 .await
             }
+            AppType::OpenCode => {
+                // OpenCode uses OpenAI-compatible API format
+                Self::check_codex_stream(
+                    &client,
+                    &base_url,
+                    &auth,
+                    &model_to_test,
+                    test_prompt,
+                    request_timeout,
+                )
+                .await
+            }
         };
 
         let response_time = start.elapsed().as_millis() as u64;
@@ -477,6 +489,10 @@ impl StreamCheckService {
             }
             AppType::Gemini => Self::extract_env_model(provider, "GEMINI_MODEL")
                 .unwrap_or_else(|| config.gemini_model.clone()),
+            AppType::OpenCode => {
+                // For OpenCode, use default model since opencode_model not in config yet
+                "claude-haiku-4-5-20251001".to_string()
+            }
         }
     }
 

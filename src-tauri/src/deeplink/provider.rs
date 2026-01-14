@@ -145,6 +145,13 @@ pub(crate) fn build_provider_from_request(
         AppType::Claude => build_claude_settings(request),
         AppType::Codex => build_codex_settings(request),
         AppType::Gemini => build_gemini_settings(request),
+        AppType::OpenCode => {
+            // OpenCode uses simple provider structure
+            json!({
+                "id": request.id.clone().unwrap_or_default(),
+                "name": request.name.clone().unwrap_or_default(),
+            })
+        }
     };
 
     // Build usage script configuration if provided

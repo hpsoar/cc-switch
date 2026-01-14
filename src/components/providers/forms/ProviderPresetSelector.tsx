@@ -5,6 +5,7 @@ import { Zap, Star, Layers, Settings2 } from "lucide-react";
 import type { ProviderPreset } from "@/config/claudeProviderPresets";
 import type { CodexProviderPreset } from "@/config/codexProviderPresets";
 import type { GeminiProviderPreset } from "@/config/geminiProviderPresets";
+import type { OpenCodeProviderPreset } from "@/config/opencodeProviderPresets";
 import type { ProviderCategory } from "@/types";
 import {
   universalProviderPresets,
@@ -12,9 +13,13 @@ import {
 } from "@/config/universalProviderPresets";
 import { ProviderIcon } from "@/components/ProviderIcon";
 
-type PresetEntry = {
+export type PresetEntry = {
   id: string;
-  preset: ProviderPreset | CodexProviderPreset | GeminiProviderPreset;
+  preset:
+    | ProviderPreset
+    | CodexProviderPreset
+    | GeminiProviderPreset
+    | OpenCodeProviderPreset;
 };
 
 interface ProviderPresetSelectorProps {
@@ -72,7 +77,11 @@ export function ProviderPresetSelector({
 
   // 渲染预设按钮的图标
   const renderPresetIcon = (
-    preset: ProviderPreset | CodexProviderPreset | GeminiProviderPreset,
+    preset:
+      | ProviderPreset
+      | CodexProviderPreset
+      | GeminiProviderPreset
+      | OpenCodeProviderPreset,
   ) => {
     const iconType = preset.theme?.icon;
     if (!iconType) return null;
@@ -84,6 +93,8 @@ export function ProviderPresetSelector({
         return <CodexIcon size={14} />;
       case "gemini":
         return <GeminiIcon size={14} />;
+      case "opencode":
+        return <ProviderIcon icon="opencode" name={preset.name} size={14} />;
       case "generic":
         return <Zap size={14} />;
       default:
@@ -94,7 +105,11 @@ export function ProviderPresetSelector({
   // 获取预设按钮的样式类名
   const getPresetButtonClass = (
     isSelected: boolean,
-    preset: ProviderPreset | CodexProviderPreset | GeminiProviderPreset,
+    preset:
+      | ProviderPreset
+      | CodexProviderPreset
+      | GeminiProviderPreset
+      | OpenCodeProviderPreset,
   ) => {
     const baseClass =
       "inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors";
@@ -114,7 +129,11 @@ export function ProviderPresetSelector({
   // 获取预设按钮的内联样式（用于自定义背景色）
   const getPresetButtonStyle = (
     isSelected: boolean,
-    preset: ProviderPreset | CodexProviderPreset | GeminiProviderPreset,
+    preset:
+      | ProviderPreset
+      | CodexProviderPreset
+      | GeminiProviderPreset
+      | OpenCodeProviderPreset,
   ) => {
     if (!isSelected || !preset.theme?.backgroundColor) {
       return undefined;

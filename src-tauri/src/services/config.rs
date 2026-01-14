@@ -3,7 +3,7 @@ use crate::app_config::{AppType, MultiAppConfig};
 use crate::error::AppError;
 use crate::provider::Provider;
 use chrono::Utc;
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::fs;
 use std::path::Path;
 
@@ -122,6 +122,10 @@ impl ConfigService {
             AppType::Codex => Self::sync_codex_live(config, &current_id, &provider)?,
             AppType::Claude => Self::sync_claude_live(config, &current_id, &provider)?,
             AppType::Gemini => Self::sync_gemini_live(config, &current_id, &provider)?,
+            AppType::OpenCode => {
+                // OpenCode sync handled in write_opencode_live
+                Self::sync_opencode_live(config, &current_id, &provider)?
+            }
         }
 
         Ok(())
@@ -212,6 +216,59 @@ impl ConfigService {
         }
 
         if let Some(manager) = config.get_manager_mut(&AppType::Gemini) {
+            if let Some(target) = manager.providers.get_mut(provider_id) {
+                target.settings_config = live_after;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn sync_opencode_live(
+        config: &mut MultiAppConfig,
+        provider_id: &str,
+        provider: &Provider,
+    ) -> Result<(), AppError> {
+        use crate::config::{read_json_file, write_json_file};
+
+        let config_path = crate::opencode_config::get_opencode_config_path();
+        if let Some(parent) = config_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| AppError::io(parent, e))?;
+        }
+
+        // Merge provider config with existing opencode config
+        let mut opencode_config = if config_path.exists() {
+            read_json_file(&config_path).unwrap_or_else(|_| {
+                json!({
+                    "$schema": "https://opencode.ai/config.json",
+                    "provider": {},
+                    "mcp": {},
+                    "plugin": []
+                })
+            })
+        } else {
+            json!({
+                "$schema": "https://opencode.ai/config.json",
+                "provider": {},
+                "mcp": {},
+                "plugin": []
+            })
+        };
+
+        if let Some(provider_obj) = opencode_config.get_mut("provider") {
+            if let Some(p) = provider_obj.as_object_mut() {
+                if let Some(settings_obj) = provider.settings_config.as_object() {
+                    for (key, value) in settings_obj.iter() {
+                        p.insert(key.clone(), value.clone());
+                    }
+                }
+            }
+        }
+
+        write_json_file(&config_path, &opencode_config)?;
+
+        let live_after = read_json_file::<serde_json::Value>(&config_path)?;
+        if let Some(manager) = config.get_manager_mut(&AppType::OpenCode) {
             if let Some(target) = manager.providers.get_mut(provider_id) {
                 target.settings_config = live_after;
             }

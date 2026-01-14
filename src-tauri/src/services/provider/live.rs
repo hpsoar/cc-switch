@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 
 use crate::app_config::AppType;
 use crate::codex_config::{get_codex_auth_path, get_codex_config_path};
@@ -67,6 +67,14 @@ impl LiveSnapshot {
                     delete_file(&config_path)?;
                 }
             }
+            LiveSnapshot::OpenCode { config } => {
+                let config_path = crate::opencode_config::get_opencode_config_path();
+                if let Some(value) = config {
+                    write_json_file(&config_path, value)?;
+                } else if config_path.exists() {
+                    delete_file(&config_path)?;
+                }
+            }
             LiveSnapshot::Gemini { env, .. } => {
                 use crate::gemini_config::{
                     get_gemini_env_path, get_gemini_settings_path, write_gemini_env_atomic,
@@ -89,6 +97,14 @@ impl LiveSnapshot {
                         delete_file(&settings_path)?;
                     }
                     _ => {}
+                }
+            }
+            LiveSnapshot::OpenCode { config, .. } => {
+                let path = crate::opencode_config::get_opencode_config_path();
+                if let Some(cfg) = config {
+                    write_opencode_config(cfg)?;
+                } else if path.exists() {
+                    delete_file(&path)?;
                 }
             }
         }

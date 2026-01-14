@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use crate::app_config::AppType;
 use crate::error::AppError;
 use crate::opencode_config::{read_opencode_config, write_opencode_config};
 use serde_json::{json, Value};

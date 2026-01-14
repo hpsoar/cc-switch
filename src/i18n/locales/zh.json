@@ -297,7 +297,8 @@
   "apps": {
     "claude": "Claude Code",
     "codex": "Codex",
-    "gemini": "Gemini"
+    "gemini": "Gemini",
+    "opencode": "OpenCode"
   },
   "console": {
     "providerSwitchReceived": "收到供应商切换事件:",
@@ -467,6 +468,16 @@
     "trends": "使用趋势",
     "rangeToday": "过去 24 小时 (按小时)",
     "rangeLast7Days": "过去 7 天",
+    "opencodeConfig": {
+      "envFile": "环境变量",
+      "envFileHint": "使用 .env 格式配置 OpenCode 环境变量",
+      "configJson": "配置文件",
+      "configJsonHint": "使用 JSON 格式配置 OpenCode 扩展参数（可选）",
+      "writeCommonConfig": "写入通用配置",
+      "editCommonConfig": "编辑通用配置",
+      "editCommonConfigTitle": "编辑 OpenCode 通用配置片段",
+      "commonConfigHint": "该片段会写入 OpenCode 的 .env（不允许包含 OPENCODE_BASE_URL、OPENCODE_API_KEY）"
+    },
     "rangeLast30Days": "过去 30 天",
     "totalTokens": "总 Token 数",
     "cacheTokens": "缓存 Token",
@@ -626,7 +637,8 @@
       "apps": {
         "claude": "Claude",
         "codex": "Codex",
-        "gemini": "Gemini"
+        "gemini": "Gemini",
+        "opencode": "OpenCode"
       }
     },
     "userLevelPath": "用户级 MCP 配置路径",
@@ -934,7 +946,8 @@
     "apps": {
       "claude": "Claude",
       "codex": "Codex",
-      "gemini": "Gemini"
+      "gemini": "Gemini",
+      "opencode": "OpenCode"
     }
   },
   "deeplink": {

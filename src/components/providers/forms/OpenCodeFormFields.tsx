@@ -4,6 +4,7 @@ import { Info } from "lucide-react";
 import EndpointSpeedTest from "./EndpointSpeedTest";
 import { ApiKeySection, EndpointField } from "./shared";
 import type { ProviderCategory } from "@/types";
+import { generateProviderKey } from "@/utils/opencode";
 
 interface EndpointCandidate {
   url: string;
@@ -11,6 +12,7 @@ interface EndpointCandidate {
 
 interface OpenCodeFormFieldsProps {
   providerId?: string;
+  providerName: string;
   shouldShowApiKey: boolean;
   apiKey: string;
   onApiKeyChange: (key: string) => void;
@@ -37,6 +39,7 @@ interface OpenCodeFormFieldsProps {
 
 export function OpenCodeFormFields({
   providerId,
+  providerName,
   shouldShowApiKey,
   apiKey,
   onApiKeyChange,
@@ -58,6 +61,11 @@ export function OpenCodeFormFields({
   speedTestEndpoints,
 }: OpenCodeFormFieldsProps) {
   const { t } = useTranslation();
+
+  // Generate provider key from name
+  const providerKey = useMemo(() => {
+    return providerName ? generateProviderKey(providerName) : "";
+  }, [providerName]);
 
   // 为每个header维护一个稳定的ID映射，避免React key变化导致重新渲染
   const headerIdMapRef = useRef<Map<string, string>>(new Map());
@@ -146,6 +154,30 @@ export function OpenCodeFormFields({
           </div>
         </div>
       </div>
+
+      {providerKey && (
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-foreground">
+            {t("provider.form.opencode.providerKey", {
+              defaultValue: "供应商标识 (Provider Key)",
+            })}
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={providerKey}
+              readOnly
+              className="flex-1 h-9 rounded-md border border-input bg-muted px-3 py-1 text-sm text-muted-foreground cursor-not-allowed"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {t("provider.form.opencode.providerKeyHint", {
+              defaultValue:
+                "自动从供应商名称生成，用于在 opencode.json 中标识此供应商。",
+            })}
+          </p>
+        </div>
+      )}
 
       {shouldShowApiKey && (
         <ApiKeySection

@@ -1190,6 +1190,7 @@ export function ProviderForm({
         {appId === "opencode" && (
           <OpenCodeFormFields
             providerId={providerId}
+            providerName={form.watch("name") || ""}
             shouldShowApiKey={shouldShowApiKey(
               form.watch("settingsConfig"),
               isEditMode,

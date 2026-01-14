@@ -183,7 +183,7 @@ export const OpenCodeProviderSection: React.FC<
         <p className="text-xs text-muted-foreground">
           {t("opencodeConfig.providerConfigHint", {
             defaultValue:
-              "使用 JSON 格式配置 OpenCode 供应商。必需字段: npm, options, models。详情请参阅 https://opencode.ai/docs/providers/",
+              "配置当前供应商的设置（不是完整的 opencode.json）。必需字段: npm, name, options, models。保存后会自动合并到 opencode.json 的 provider 对象中。",
           })}
         </p>
       )}

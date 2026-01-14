@@ -149,8 +149,18 @@ impl ProviderService {
         Self::normalize_provider_if_claude(&app_type, &mut provider);
         Self::validate_provider_settings(&app_type, &provider)?;
 
+        // Generate provider key for OpenCode
+        if app_type == AppType::OpenCode && provider.provider_key.is_none() {
+            provider.provider_key = Some(Self::generate_provider_key(&provider.name));
+        }
+
         // Save to database
         state.db.save_provider(app_type.as_str(), &provider)?;
+
+        // For OpenCode, sync all providers to opencode.json
+        if app_type == AppType::OpenCode {
+            crate::services::provider::live::sync_all_opencode_providers(state)?;
+        }
 
         // Check if sync is needed (if this is current provider, or no current provider)
         let current = state.db.get_current_provider(app_type.as_str())?;
@@ -159,7 +169,11 @@ impl ProviderService {
             state
                 .db
                 .set_current_provider(app_type.as_str(), &provider.id)?;
-            write_live_snapshot(&app_type, &provider)?;
+
+            // For non-OpenCode apps, write live snapshot
+            if app_type != AppType::OpenCode {
+                write_live_snapshot(&app_type, &provider)?;
+            }
         }
 
         Ok(true)
@@ -176,6 +190,11 @@ impl ProviderService {
         Self::normalize_provider_if_claude(&app_type, &mut provider);
         Self::validate_provider_settings(&app_type, &provider)?;
 
+        // Generate provider key for OpenCode if not set
+        if app_type == AppType::OpenCode && provider.provider_key.is_none() {
+            provider.provider_key = Some(Self::generate_provider_key(&provider.name));
+        }
+
         // Check if this is current provider (use effective current, not just DB)
         let effective_current =
             crate::settings::get_effective_current_provider(&state.db, &app_type)?;
@@ -184,7 +203,12 @@ impl ProviderService {
         // Save to database
         state.db.save_provider(app_type.as_str(), &provider)?;
 
-        if is_current {
+        // For OpenCode, always sync all providers to opencode.json
+        if app_type == AppType::OpenCode {
+            crate::services::provider::live::sync_all_opencode_providers(state)?;
+        }
+
+        if is_current && app_type != AppType::OpenCode {
             // 如果代理接管模式处于激活状态，并且代理服务正在运行：
             // - 不写 Live 配置（否则会破坏接管）
             // - 仅更新 Live 备份（保证关闭代理时能恢复到最新配置）
@@ -227,7 +251,14 @@ impl ProviderService {
             ));
         }
 
-        state.db.delete_provider(app_type.as_str(), id)
+        state.db.delete_provider(app_type.as_str(), id)?;
+
+        // For OpenCode, sync all remaining providers to opencode.json
+        if app_type == AppType::OpenCode {
+            crate::services::provider::live::sync_all_opencode_providers(state)?;
+        }
+
+        Ok(())
     }
 
     /// Switch to a provider

@@ -132,20 +132,67 @@ pub(crate) fn write_live_snapshot(app_type: &AppType, provider: &Provider) -> Re
             write_gemini_live(provider)?;
         }
         AppType::OpenCode => {
-            let mut config = read_opencode_config()?;
-            let config_obj = config
-                .as_object_mut()
-                .ok_or_else(|| AppError::Config("OpenCode 配置必须是 JSON 对象".to_string()))?;
-            let provider_map = config_obj
-                .entry("provider")
-                .or_insert_with(|| json!({}))
-                .as_object_mut()
-                .ok_or_else(|| AppError::Config("OpenCode provider 字段必须是对象".to_string()))?;
-
-            provider_map.insert(provider.id.clone(), provider.settings_config.clone());
-            write_opencode_config(&Value::Object(config_obj.clone()))?;
+            // OpenCode uses multi-provider architecture
+            // This function is only called for the current provider during sync
+            // For OpenCode, we need to write ALL providers using sync_all_opencode_providers
+            // This branch should not be used for OpenCode - see sync_current_to_live
+            return Ok(());
         }
     }
+    Ok(())
+}
+
+/// Sync all OpenCode providers to opencode.json
+///
+/// OpenCode uses a multi-provider architecture where all providers are written to the config
+pub(crate) fn sync_all_opencode_providers(state: &AppState) -> Result<(), AppError> {
+    use crate::services::provider::ProviderService;
+
+    let providers = state.db.get_all_providers(AppType::OpenCode.as_str())?;
+
+    let mut config = read_opencode_config()?;
+    let config_obj = config
+        .as_object_mut()
+        .ok_or_else(|| AppError::Config("OpenCode 配置必须是 JSON 对象".to_string()))?;
+
+    let provider_map = config_obj
+        .entry("provider")
+        .or_insert_with(|| json!({}))
+        .as_object_mut()
+        .ok_or_else(|| AppError::Config("OpenCode provider 字段必须是对象".to_string()))?;
+
+    // Clear existing providers and rebuild
+    provider_map.clear();
+
+    // Track conflicts
+    let mut conflicts = Vec::new();
+
+    for (id, provider) in providers.iter() {
+        // Generate provider key from name
+        let provider_key = provider
+            .provider_key
+            .clone()
+            .unwrap_or_else(|| ProviderService::generate_provider_key(&provider.name));
+
+        // Check for conflicts
+        if provider_map.contains_key(&provider_key) {
+            conflicts.push(format!(
+                "Provider key '{}' conflicts (ID: {}, Name: {})",
+                provider_key, id, provider.name
+            ));
+        }
+
+        provider_map.insert(provider_key, provider.settings_config.clone());
+    }
+
+    // Write config
+    write_opencode_config(&Value::Object(config_obj.clone()))?;
+
+    // Log conflicts as warnings
+    if !conflicts.is_empty() {
+        log::warn!("OpenCode provider key conflicts detected:\n{}", conflicts.join("\n"));
+    }
+
     Ok(())
 }
 
@@ -155,11 +202,13 @@ pub(crate) fn write_live_snapshot(app_type: &AppType, provider: &Provider) -> Re
 /// 优先从本地 settings 读取，验证后 fallback 到数据库的 is_current 字段。
 /// 这确保了配置导入后无效 ID 会自动 fallback 到数据库。
 pub fn sync_current_to_live(state: &AppState) -> Result<(), AppError> {
+    // OpenCode uses multi-provider architecture - sync all providers
+    sync_all_opencode_providers(state)?;
+
     for app_type in [
         AppType::Claude,
         AppType::Codex,
         AppType::Gemini,
-        AppType::OpenCode,
     ] {
         let current_id =
             match crate::settings::get_effective_current_provider(&state.db, &app_type)? {
@@ -241,7 +290,14 @@ pub fn read_live_settings(app_type: AppType) -> Result<Value, AppError> {
                 "config": config_obj
             }))
         }
-        AppType::OpenCode => read_opencode_config(),
+        AppType::OpenCode => {
+            // For OpenCode, we should not use read_live_settings to get provider config
+            // Provider configs are stored in the database, not read from opencode.json
+            // This function should only be used for other apps
+            Err(AppError::Config(
+                "OpenCode 供应商配置存储在数据库中，请使用数据库 API 读取".to_string(),
+            ))
+        }
     }
 }
 
@@ -314,7 +370,22 @@ pub fn import_default_config(state: &AppState, app_type: AppType) -> Result<bool
                 "config": config_obj
             })
         }
-        AppType::OpenCode => read_opencode_config()?,
+        AppType::OpenCode => {
+            // For OpenCode, read the full config and extract the first provider
+            let full_config = read_opencode_config()?;
+            let provider_obj = full_config
+                .get("provider")
+                .and_then(|v| v.as_object())
+                .ok_or_else(|| AppError::Config("OpenCode 配置缺少 provider 对象".to_string()))?;
+
+            // Get the first provider (or return error if empty)
+            let (_key, first_provider) = provider_obj
+                .iter()
+                .next()
+                .ok_or_else(|| AppError::Config("OpenCode 配置中没有供应商".to_string()))?;
+
+            first_provider.clone()
+        }
     };
 
     let mut provider = Provider::with_id(

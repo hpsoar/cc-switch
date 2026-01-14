@@ -52,6 +52,7 @@ import {
   useGeminiConfigState,
   useOpenCodeConfigState,
   useGeminiCommonConfig,
+  useOpenCodeCommonConfig,
   useTemplateValues,
 } from "./hooks";
 
@@ -515,6 +516,23 @@ export function ProviderForm({
     initialData: appId === "opencode" ? initialData : undefined,
   });
 
+  // OpenCode Common Config states
+  const {
+    useCommonConfig: useOpenCodeCommonConfigFlag,
+    commonConfigSnippet: opencodeCommonConfigSnippet,
+    commonConfigError: opencodeCommonConfigError,
+    handleCommonConfigToggle: handleOpenCodeCommonConfigToggle,
+    handleCommonConfigSnippetChange: handleOpenCodeCommonConfigSnippetChange,
+    isExtracting: isOpenCodeExtracting,
+    handleExtract: handleOpenCodeExtract,
+    clearCommonConfigError: clearOpenCodeCommonConfigError,
+  } = useOpenCodeCommonConfig({
+    providerConfigValue: providerConfigJson,
+    onProviderConfigChange: handleOpenCodeConfigChange,
+    initialData: appId === "opencode" ? initialData : undefined,
+    selectedPresetId: selectedPresetId ?? undefined,
+  });
+
   const [opencodeHeaders, setOpencodeHeaders] = useState<
     Record<string, string>
   >({});
@@ -538,7 +556,21 @@ export function ProviderForm({
       if (!name || !name.trim()) return;
 
       const parsed = parseProviderConfig(providerConfigJson);
-      if (parsed && parsed.name !== name.trim()) {
+
+      // 如果没有配置，创建初始配置
+      if (!parsed) {
+        const initialConfig = {
+          npm: "@ai-sdk/openai-compatible",
+          name: name.trim(),
+          options: {
+            apiKey: "{env:API_KEY}",
+            baseURL: "",
+          },
+          models: {},
+        };
+        const newJson = JSON.stringify(initialConfig, null, 2);
+        handleOpenCodeConfigChange(newJson);
+      } else if (parsed.name !== name.trim()) {
         const updated = {
           ...parsed,
           name: name.trim(),
@@ -606,16 +638,31 @@ export function ProviderForm({
       setOpencodeHeaders(headers);
 
       const parsed = parseProviderConfig(providerConfigJson);
-      if (!parsed) return;
 
-      const updated = {
-        ...parsed,
-        options: {
-          ...parsed.options,
-          headers,
-        },
-      };
-      const newJson = JSON.stringify(updated, null, 2);
+      let config: any;
+      if (!parsed) {
+        // 如果没有配置，创建初始配置
+        config = {
+          npm: "@ai-sdk/openai-compatible",
+          name: "Custom Provider",
+          options: {
+            apiKey: "{env:API_KEY}",
+            baseURL: "",
+            headers,
+          },
+          models: {},
+        };
+      } else {
+        config = {
+          ...parsed,
+          options: {
+            ...parsed.options,
+            headers,
+          },
+        };
+      }
+
+      const newJson = JSON.stringify(config, null, 2);
 
       // 标记这是从UI触发的更新
       isUpdatingFromUIRef.current = true;
@@ -1233,6 +1280,14 @@ export function ProviderForm({
               providerConfigValue={providerConfigJson}
               onProviderConfigChange={handleOpenCodeConfigChangeWithSync}
               configError={configError}
+              useCommonConfig={useOpenCodeCommonConfigFlag}
+              onCommonConfigToggle={handleOpenCodeCommonConfigToggle}
+              commonConfigSnippet={opencodeCommonConfigSnippet}
+              onCommonConfigSnippetChange={handleOpenCodeCommonConfigSnippetChange}
+              commonConfigError={opencodeCommonConfigError}
+              onExtract={handleOpenCodeExtract}
+              isExtracting={isOpenCodeExtracting}
+              onClearCommonConfigError={clearOpenCodeCommonConfigError}
             />
             {/* 配置验证错误显示 */}
             <FormField

@@ -217,7 +217,7 @@ pub async fn set_common_config_snippet(
     // 验证格式（根据应用类型）
     if !snippet.trim().is_empty() {
         match app_type.as_str() {
-            "claude" | "gemini" => {
+            "claude" | "gemini" | "opencode" => {
                 // 验证 JSON 格式
                 serde_json::from_str::<serde_json::Value>(&snippet)
                     .map_err(invalid_json_format_error)?;

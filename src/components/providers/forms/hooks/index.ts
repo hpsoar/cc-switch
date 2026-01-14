@@ -13,3 +13,4 @@ export { useCodexTomlValidation } from "./useCodexTomlValidation";
 export { useGeminiConfigState } from "./useGeminiConfigState";
 export { useOpenCodeConfigState } from "./useOpenCodeConfigState";
 export { useGeminiCommonConfig } from "./useGeminiCommonConfig";
+export { useOpenCodeCommonConfig } from "./useOpenCodeCommonConfig";

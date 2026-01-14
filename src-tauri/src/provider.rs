@@ -40,6 +40,10 @@ pub struct Provider {
     #[serde(default)]
     #[serde(rename = "inFailoverQueue")]
     pub in_failover_queue: bool,
+    /// OpenCode provider key (auto-generated from name for multi-provider support)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "providerKey")]
+    pub provider_key: Option<String>,
 }
 
 impl Provider {
@@ -63,6 +67,7 @@ impl Provider {
             icon: None,
             icon_color: None,
             in_failover_queue: false,
+            provider_key: None,
         }
     }
 }

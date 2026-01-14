@@ -1,17 +1,28 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import JsonEditor from "@/components/JsonEditor";
+import { Label } from "@/components/ui/label";
 import { OpenCodeModelConfig } from "./OpenCodeModelConfig";
 
 interface OpenCodeProviderSectionProps {
   value: string;
   onChange: (value: string) => void;
   configError?: string;
+  useCommonConfig?: boolean;
+  onCommonConfigToggle?: (checked: boolean) => void;
+  onEditCommonConfig?: () => void;
 }
 
 export const OpenCodeProviderSection: React.FC<
   OpenCodeProviderSectionProps
-> = ({ value, onChange, configError }) => {
+> = ({
+  value,
+  onChange,
+  configError,
+  useCommonConfig = false,
+  onCommonConfigToggle,
+  onEditCommonConfig,
+}) => {
   const { t } = useTranslation();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [models, setModels] = useState<Record<string, any>>({});
@@ -98,14 +109,42 @@ export const OpenCodeProviderSection: React.FC<
 
   return (
     <div className="space-y-4">
-      <label
-        htmlFor="opencodeProviderConfig"
-        className="block text-sm font-medium text-foreground"
-      >
-        {t("opencodeConfig.providerConfig", {
-          defaultValue: "供应商配置 (JSON)",
-        })}
-      </label>
+      <div className="flex items-center justify-between">
+        <Label htmlFor="opencodeProviderConfig">
+          {t("opencodeConfig.providerConfig", {
+            defaultValue: "供应商配置 (JSON)",
+          })}
+        </Label>
+
+        {onCommonConfigToggle && (
+          <label className="inline-flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              id="useOpenCodeCommonConfig"
+              checked={useCommonConfig}
+              onChange={(e) => onCommonConfigToggle(e.target.checked)}
+              className="w-4 h-4 text-blue-500 bg-white dark:bg-gray-800 border-border-default rounded focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-2"
+            />
+            {t("opencodeConfig.writeCommonConfig", {
+              defaultValue: "写入通用配置",
+            })}
+          </label>
+        )}
+      </div>
+
+      {onEditCommonConfig && (
+        <div className="flex items-center justify-end">
+          <button
+            type="button"
+            onClick={onEditCommonConfig}
+            className="text-xs text-blue-400 dark:text-blue-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+          >
+            {t("opencodeConfig.editCommonConfig", {
+              defaultValue: "编辑通用配置",
+            })}
+          </button>
+        </div>
+      )}
 
       <JsonEditor
         value={value}

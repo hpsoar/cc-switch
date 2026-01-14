@@ -218,17 +218,31 @@ export function useOpenCodeConfigState({
   const handleOpenCodeHeadersChange = useCallback(
     (headers: Record<string, string>) => {
       const parsed = parseProviderConfig(providerConfigJson);
-      if (!parsed) return;
 
-      const updated = {
-        ...parsed,
-        options: {
-          ...parsed.options,
-          headers,
-        },
-      };
+      let config: OpenCodeProviderConfig;
+      if (!parsed) {
+        // 如果没有配置，创建初始配置
+        config = {
+          npm: "@ai-sdk/openai-compatible",
+          name: "Custom Provider",
+          options: {
+            apiKey: "{env:API_KEY}",
+            baseURL: "",
+            headers,
+          },
+          models: {},
+        };
+      } else {
+        config = {
+          ...parsed,
+          options: {
+            ...parsed.options,
+            headers,
+          },
+        };
+      }
 
-      const newJson = JSON.stringify(updated, null, 2);
+      const newJson = JSON.stringify(config, null, 2);
       setProviderConfig(newJson);
     },
     [providerConfigJson, parseProviderConfig, setProviderConfig],

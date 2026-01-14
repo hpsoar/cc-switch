@@ -380,7 +380,7 @@ impl ProviderService {
             AppType::Claude => Self::extract_claude_common_config(&provider.settings_config),
             AppType::Codex => Self::extract_codex_common_config(&provider.settings_config),
             AppType::Gemini => Self::extract_gemini_common_config(&provider.settings_config),
-            AppType::OpenCode => Self::extract_codex_common_config(&provider.settings_config),
+            AppType::OpenCode => Self::extract_opencode_common_config(&provider.settings_config),
         }
     }
 
@@ -393,7 +393,7 @@ impl ProviderService {
             AppType::Claude => Self::extract_claude_common_config(settings_config),
             AppType::Codex => Self::extract_codex_common_config(settings_config),
             AppType::Gemini => Self::extract_gemini_common_config(settings_config),
-            AppType::OpenCode => Self::extract_codex_common_config(settings_config),
+            AppType::OpenCode => Self::extract_opencode_common_config(settings_config),
         }
     }
 
@@ -525,6 +525,40 @@ impl ProviderService {
 
         serde_json::to_string_pretty(&Value::Object(snippet))
             .map_err(|e| AppError::Message(format!("Serialization failed: {e}")))
+    }
+
+    /// Extract common config for OpenCode (JSON format)
+    ///
+    /// Extracts `.options` values while excluding provider-specific credentials:
+    /// - baseURL
+    /// - apiKey
+    fn extract_opencode_common_config(settings: &Value) -> Result<String, AppError> {
+        let options = settings.get("options").and_then(|v| v.as_object());
+
+        let mut snippet = serde_json::Map::new();
+        if let Some(options) = options {
+            for (key, value) in options {
+                if key == "baseURL" || key == "apiKey" {
+                    continue;
+                }
+                snippet.insert(key.to_string(), value.clone());
+            }
+        }
+
+        if snippet.is_empty() {
+            return Ok("{}".to_string());
+        }
+
+        serde_json::to_string_pretty(&Value::Object(snippet))
+            .map_err(|e| AppError::Message(format!("Serialization failed: {e}")))
+    }
+
+    /// Generate provider key from provider name
+    ///
+    /// Rules: lowercase, spaces replaced with hyphens
+    /// Example: "My Provider" → "my-provider"
+    pub fn generate_provider_key(name: &str) -> String {
+        name.trim().to_lowercase().replace(' ', "-")
     }
 
     /// Import default configuration from live files (re-export)

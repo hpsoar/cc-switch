@@ -36,7 +36,8 @@
     "search": "Search",
     "reset": "Reset",
     "actions": "Actions",
-    "deleting": "Deleting..."
+    "deleting": "Deleting...",
+    "noResults": "No results found"
   },
   "apiKeyInput": {
     "placeholder": "Enter API Key",
@@ -639,6 +640,7 @@
       "deleteServer": "Delete Server",
       "deleteConfirm": "Are you sure you want to delete server \"{{id}}\"? This action cannot be undone.",
       "noServers": "No servers yet",
+      "noServersForFilter": "No servers found for the current filter",
       "enabledApps": "Enabled Apps",
       "noImportFound": "No MCP servers to import found. All servers are already managed by CC Switch.",
       "importSuccess": "Successfully imported {{count}} MCP servers",

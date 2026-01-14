@@ -250,6 +250,7 @@ mod tests {
             meta: None,
             icon: None,
             icon_color: None,
+            provider_key: None,
             in_failover_queue: false,
         }
     }

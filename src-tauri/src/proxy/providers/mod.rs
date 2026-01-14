@@ -16,6 +16,7 @@ mod auth;
 mod claude;
 mod codex;
 mod gemini;
+mod opencode;
 pub mod models;
 pub mod streaming;
 pub mod transform;
@@ -28,6 +29,7 @@ use serde::{Deserialize, Serialize};
 pub use adapter::ProviderAdapter;
 pub use auth::{AuthInfo, AuthStrategy};
 pub use claude::ClaudeAdapter;
+pub use opencode::OpenCodeAdapter;
 pub use codex::CodexAdapter;
 pub use gemini::GeminiAdapter;
 
@@ -177,7 +179,7 @@ pub fn get_adapter(app_type: &AppType) -> Box<dyn ProviderAdapter> {
         AppType::Claude => Box::new(ClaudeAdapter::new()),
         AppType::Codex => Box::new(CodexAdapter::new()),
         AppType::Gemini => Box::new(GeminiAdapter::new()),
-        AppType::OpenCode => Box::new(ClaudeAdapter::new()),
+        AppType::OpenCode => Box::new(OpenCodeAdapter::new()),
     }
 }
 
@@ -211,6 +213,7 @@ mod tests {
             meta: None,
             icon: None,
             icon_color: None,
+            provider_key: None,
             in_failover_queue: false,
         }
     }

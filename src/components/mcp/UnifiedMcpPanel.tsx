@@ -38,6 +38,7 @@ const UnifiedMcpPanel = React.forwardRef<
   const { t } = useTranslation();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [filterApp, setFilterApp] = useState<AppId | "all">("all");
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -57,13 +58,20 @@ const UnifiedMcpPanel = React.forwardRef<
     return Object.entries(serversMap);
   }, [serversMap]);
 
+  // Filter servers by selected app
+  const filteredServerEntries = useMemo((): Array<[string, McpServer]> => {
+    if (filterApp === "all") return serverEntries;
+    return serverEntries.filter(([_, server]) => server.apps[filterApp]);
+  }, [serverEntries, filterApp]);
+
   // Count enabled servers per app
   const enabledCounts = useMemo(() => {
-    const counts = { claude: 0, codex: 0, gemini: 0 };
+    const counts = { claude: 0, codex: 0, gemini: 0, opencode: 0 };
     serverEntries.forEach(([_, server]) => {
       if (server.apps.claude) counts.claude++;
       if (server.apps.codex) counts.codex++;
       if (server.apps.gemini) counts.gemini++;
+      if (server.apps.opencode) counts.opencode++;
     });
     return counts;
   }, [serverEntries]);
@@ -142,13 +150,44 @@ const UnifiedMcpPanel = React.forwardRef<
 
   return (
     <div className="mx-auto max-w-[56rem] px-6 flex flex-col h-[calc(100vh-8rem)] overflow-hidden">
-      {/* Info Section */}
+      {/* Filter Section */}
       <div className="flex-shrink-0 py-4 glass rounded-xl border border-white/10 mb-4 px-6">
-        <div className="text-sm text-muted-foreground">
-          {t("mcp.serverCount", { count: serverEntries.length })} ·{" "}
-          {t("mcp.unifiedPanel.apps.claude")}: {enabledCounts.claude} ·{" "}
-          {t("mcp.unifiedPanel.apps.codex")}: {enabledCounts.codex} ·{" "}
-          {t("mcp.unifiedPanel.apps.gemini")}: {enabledCounts.gemini}
+        <div className="flex gap-2">
+          <Button
+            variant={filterApp === "all" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilterApp("all")}
+          >
+            {t("common.all")} ({serverEntries.length})
+          </Button>
+          <Button
+            variant={filterApp === "claude" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilterApp("claude")}
+          >
+            {t("mcp.unifiedPanel.apps.claude")} ({enabledCounts.claude})
+          </Button>
+          <Button
+            variant={filterApp === "codex" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilterApp("codex")}
+          >
+            {t("mcp.unifiedPanel.apps.codex")} ({enabledCounts.codex})
+          </Button>
+          <Button
+            variant={filterApp === "gemini" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilterApp("gemini")}
+          >
+            {t("mcp.unifiedPanel.apps.gemini")} ({enabledCounts.gemini})
+          </Button>
+          <Button
+            variant={filterApp === "opencode" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilterApp("opencode")}
+          >
+            {t("mcp.unifiedPanel.apps.opencode")} ({enabledCounts.opencode})
+          </Button>
         </div>
       </div>
 
@@ -170,9 +209,21 @@ const UnifiedMcpPanel = React.forwardRef<
               {t("mcp.emptyDescription")}
             </p>
           </div>
+        ) : filteredServerEntries.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
+              <Server size={24} className="text-muted-foreground" />
+            </div>
+            <h3 className="text-lg font-medium text-foreground mb-2">
+              {t("common.noResults")}
+            </h3>
+            <p className="text-muted-foreground text-sm">
+              {t("mcp.unifiedPanel.noServersForFilter")}
+            </p>
+          </div>
         ) : (
           <div className="space-y-3">
-            {serverEntries.map(([id, server]) => (
+            {filteredServerEntries.map(([id, server]) => (
               <UnifiedMcpListItem
                 key={id}
                 id={id}
@@ -334,6 +385,22 @@ const UnifiedMcpListItem: React.FC<UnifiedMcpListItemProps> = ({
             checked={server.apps.gemini}
             onCheckedChange={(checked: boolean) =>
               onToggleApp(id, "gemini", checked)
+            }
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <label
+            htmlFor={`${id}-opencode`}
+            className="text-sm text-foreground/80 cursor-pointer"
+          >
+            {t("mcp.unifiedPanel.apps.opencode")}
+          </label>
+          <Switch
+            id={`${id}-opencode`}
+            checked={server.apps.opencode}
+            onCheckedChange={(checked: boolean) =>
+              onToggleApp(id, "opencode", checked)
             }
           />
         </div>

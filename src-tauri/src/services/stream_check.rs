@@ -36,9 +36,16 @@ pub struct StreamCheckConfig {
     pub codex_model: String,
     /// Gemini 测试模型
     pub gemini_model: String,
+    /// OpenCode 测试模型
+    #[serde(default = "default_opencode_model")]
+    pub opencode_model: String,
     /// 检查提示词
     #[serde(default = "default_test_prompt")]
     pub test_prompt: String,
+}
+
+fn default_opencode_model() -> String {
+    "claude-3-5-sonnet-20241022".to_string()
 }
 
 fn default_test_prompt() -> String {
@@ -54,6 +61,7 @@ impl Default for StreamCheckConfig {
             claude_model: "claude-haiku-4-5-20251001".to_string(),
             codex_model: "gpt-5.1-codex@low".to_string(),
             gemini_model: "gemini-3-pro-preview".to_string(),
+            opencode_model: default_opencode_model(),
             test_prompt: default_test_prompt(),
         }
     }
@@ -186,8 +194,8 @@ impl StreamCheckService {
                 .await
             }
             AppType::OpenCode => {
-                // OpenCode uses OpenAI-compatible API format
-                Self::check_codex_stream(
+                // OpenCode uses OpenAI-compatible Chat Completions API
+                Self::check_openai_chat_stream(
                     &client,
                     &base_url,
                     &auth,
@@ -440,6 +448,77 @@ impl StreamCheckService {
         }
     }
 
+    /// OpenAI Chat Completions 流式检查 (用于 OpenCode)
+    ///
+    /// 使用标准 OpenAI Chat Completions API 格式
+    async fn check_openai_chat_stream(
+        client: &Client,
+        base_url: &str,
+        auth: &AuthInfo,
+        model: &str,
+        test_prompt: &str,
+        timeout: std::time::Duration,
+    ) -> Result<(u16, String), AppError> {
+        let base = base_url.trim_end_matches('/');
+
+        // 智能构建URL：如果baseURL已经包含/v1，则直接追加/chat/completions
+        // 否则追加完整路径/v1/chat/completions
+        let url = if base.ends_with("/v1") {
+            format!("{base}/chat/completions")
+        } else {
+            format!("{base}/v1/chat/completions")
+        };
+
+        log::info!("OpenCode stream check - URL: {}", url);
+        log::info!("OpenCode stream check - Model: {}", model);
+        log::info!("OpenCode stream check - Base URL: {}", base_url);
+
+        let body = json!({
+            "model": model,
+            "messages": [{ "role": "user", "content": test_prompt }],
+            "max_tokens": 1,
+            "stream": true
+        });
+
+        log::debug!("OpenCode stream check - Request body: {}", serde_json::to_string_pretty(&body).unwrap_or_default());
+
+        let response = client
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", auth.api_key))
+            .header("Content-Type", "application/json")
+            .timeout(timeout)
+            .json(&body)
+            .send()
+            .await
+            .map_err(Self::map_request_error)?;
+
+        let status = response.status().as_u16();
+        log::info!("OpenCode stream check - HTTP status: {}", status);
+
+        if !response.status().is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            log::error!("OpenCode stream check - Error response: {}", error_text);
+            return Err(AppError::Message(format!("HTTP {status}: {error_text}")));
+        }
+
+        let mut stream = response.bytes_stream();
+        if let Some(chunk) = stream.next().await {
+            match chunk {
+                Ok(data) => {
+                    log::debug!("OpenCode stream check - Received first chunk: {} bytes", data.len());
+                    Ok((status, model.to_string()))
+                }
+                Err(e) => {
+                    log::error!("OpenCode stream check - Stream read failed: {}", e);
+                    Err(AppError::Message(format!("Stream read failed: {e}")))
+                }
+            }
+        } else {
+            log::error!("OpenCode stream check - No response data received");
+            Err(AppError::Message("No response data received".to_string()))
+        }
+    }
+
     fn determine_status(latency_ms: u64, threshold: u64) -> HealthStatus {
         if latency_ms <= threshold {
             HealthStatus::Operational
@@ -490,10 +569,23 @@ impl StreamCheckService {
             AppType::Gemini => Self::extract_env_model(provider, "GEMINI_MODEL")
                 .unwrap_or_else(|| config.gemini_model.clone()),
             AppType::OpenCode => {
-                // For OpenCode, use default model since opencode_model not in config yet
-                "claude-haiku-4-5-20251001".to_string()
+                // For OpenCode, use the first model from models object or default
+                Self::extract_opencode_first_model(provider)
+                    .unwrap_or_else(|| config.opencode_model.clone())
             }
         }
+    }
+
+    fn extract_opencode_first_model(provider: &Provider) -> Option<String> {
+        // OpenCode config structure: { "models": { "model-id": {...} } }
+        provider
+            .settings_config
+            .get("models")
+            .and_then(|models| models.as_object())
+            .and_then(|models_obj| {
+                // Get the first model ID
+                models_obj.keys().next().map(|key| key.to_string())
+            })
     }
 
     fn extract_env_model(provider: &Provider, key: &str) -> Option<String> {

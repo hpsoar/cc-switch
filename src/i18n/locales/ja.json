@@ -36,7 +36,8 @@
     "search": "検索",
     "reset": "リセット",
     "actions": "操作",
-    "deleting": "削除中..."
+    "deleting": "削除中...",
+    "noResults": "結果が見つかりません"
   },
   "apiKeyInput": {
     "placeholder": "API Key を入力",
@@ -639,6 +640,7 @@
       "deleteServer": "サーバーを削除",
       "deleteConfirm": "サーバー「{{id}}」を削除しますか？この操作は元に戻せません。",
       "noServers": "まだサーバーがありません",
+      "noServersForFilter": "現在のフィルター条件ではサーバーが見つかりません",
       "enabledApps": "有効なアプリ",
       "noImportFound": "インポートする MCP サーバーが見つかりませんでした。すべてのサーバーは CC Switch で管理されています。",
       "importSuccess": "{{count}} 個の MCP サーバーをインポートしました",

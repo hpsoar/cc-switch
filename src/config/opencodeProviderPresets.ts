@@ -1,14 +1,8 @@
 import type { ProviderCategory } from "@/types";
 
-/**
- * OpenCode 预设供应商的视觉主题配置
- */
 export interface OpenCodePresetTheme {
-  /** 图标类型：'opencode' | 'generic' */
   icon?: "opencode" | "generic";
-  /** 背景色（选中状态），支持 hex 颜色 */
   backgroundColor?: string;
-  /** 文字色（选中状态），支持 hex 颜色 */
   textColor?: string;
 }
 
@@ -18,16 +12,14 @@ export interface OpenCodeProviderPreset {
   apiKeyUrl?: string;
   settingsConfig: object;
   baseURL?: string;
-  model?: string;
   description?: string;
   category?: ProviderCategory;
   isPartner?: boolean;
   partnerPromotionKey?: string;
   endpointCandidates?: string[];
   theme?: OpenCodePresetTheme;
-  // 图标配置
-  icon?: string; // 图标名称
-  iconColor?: string; // 图标颜色
+  icon?: string;
+  iconColor?: string;
 }
 
 export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
@@ -35,7 +27,27 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     name: "OpenCode Official",
     websiteUrl: "https://opencode.ai",
     settingsConfig: {
-      env: {},
+      npm: "@ai-sdk/anthropic",
+      name: "OpenCode Official",
+      options: {
+        apiKey: "{env:OPENCODE_API_KEY}",
+      },
+      models: {
+        "claude-sonnet-4-5": {
+          name: "Claude Sonnet 4.5",
+          limit: {
+            context: 200000,
+            output: 64000,
+          },
+        },
+        "claude-haiku-4-5": {
+          name: "Claude Haiku 4.5",
+          limit: {
+            context: 200000,
+            output: 8192,
+          },
+        },
+      },
     },
     description: "OpenCode 官方 API",
     category: "official",
@@ -52,13 +64,30 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     websiteUrl: "https://www.packyapi.com",
     apiKeyUrl: "https://www.packyapi.com/register?aff=cc-switch",
     settingsConfig: {
-      env: {
-        OPENCODE_BASE_URL: "https://www.packyapi.com",
-        MODEL: "openai/gpt-4o",
+      npm: "@ai-sdk/openai-compatible",
+      name: "PackyCode",
+      options: {
+        baseURL: "https://www.packyapi.com",
+        apiKey: "{env:API_KEY}",
+      },
+      models: {
+        "openai/gpt-4o": {
+          name: "GPT-4o",
+          limit: {
+            context: 128000,
+            output: 4096,
+          },
+        },
+        "anthropic/claude-sonnet-4-5": {
+          name: "Claude Sonnet 4.5",
+          limit: {
+            context: 200000,
+            output: 64000,
+          },
+        },
       },
     },
     baseURL: "https://www.packyapi.com",
-    model: "openai/gpt-4o",
     description: "PackyCode",
     category: "third_party",
     isPartner: true,
@@ -74,13 +103,30 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     websiteUrl: "https://cubence.com",
     apiKeyUrl: "https://cubence.com/signup?code=CCSWITCH&source=ccs",
     settingsConfig: {
-      env: {
-        OPENCODE_BASE_URL: "https://api.cubence.com",
-        MODEL: "openai/gpt-4o",
+      npm: "@ai-sdk/openai-compatible",
+      name: "Cubence",
+      options: {
+        baseURL: "https://api.cubence.com",
+        apiKey: "{env:API_KEY}",
+      },
+      models: {
+        "openai/gpt-4o": {
+          name: "GPT-4o",
+          limit: {
+            context: 128000,
+            output: 4096,
+          },
+        },
+        "anthropic/claude-sonnet-4-5": {
+          name: "Claude Sonnet 4.5",
+          limit: {
+            context: 200000,
+            output: 64000,
+          },
+        },
       },
     },
     baseURL: "https://api.cubence.com",
-    model: "openai/gpt-4o",
     description: "Cubence",
     category: "third_party",
     isPartner: true,
@@ -99,13 +145,23 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     websiteUrl: "https://aigocode.com",
     apiKeyUrl: "https://aigocode.com/invite/CC-SWITCH",
     settingsConfig: {
-      env: {
-        OPENCODE_BASE_URL: "https://api.aigocode.com/openai",
-        MODEL: "openai/gpt-4o",
+      npm: "@ai-sdk/openai-compatible",
+      name: "AIGoCode",
+      options: {
+        baseURL: "https://api.aigocode.com/openai",
+        apiKey: "{env:API_KEY}",
+      },
+      models: {
+        "openai/gpt-4o": {
+          name: "GPT-4o",
+          limit: {
+            context: 128000,
+            output: 4096,
+          },
+        },
       },
     },
     baseURL: "https://api.aigocode.com/openai",
-    model: "openai/gpt-4o",
     description: "AIGoCode",
     category: "third_party",
     isPartner: true,
@@ -119,28 +175,59 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     websiteUrl: "https://openrouter.ai",
     apiKeyUrl: "https://openrouter.ai/keys",
     settingsConfig: {
-      env: {
-        OPENCODE_BASE_URL: "https://openrouter.ai/api/v1",
-        MODEL: "openai/gpt-4o",
+      npm: "@ai-sdk/openai-compatible",
+      name: "OpenRouter",
+      options: {
+        baseURL: "https://openrouter.ai/api/v1",
+        apiKey: "{env:OPENROUTER_API_KEY}",
+        headers: {
+          "HTTP-Referer": "https://cc-switch.opencode.ai/",
+          "X-Title": "CC-Switch",
+        },
+      },
+      models: {
+        "anthropic/claude-sonnet-4.5": {
+          name: "Claude Sonnet 4.5",
+          limit: {
+            context: 200000,
+            output: 8192,
+          },
+        },
+        "openai/gpt-4o": {
+          name: "GPT-4o",
+          limit: {
+            context: 128000,
+            output: 4096,
+          },
+        },
       },
     },
     baseURL: "https://openrouter.ai/api/v1",
-    model: "openai/gpt-4o",
     description: "OpenRouter",
     category: "aggregator",
     icon: "openrouter",
     iconColor: "#6566F1",
   },
   {
-    name: "自定义",
+    name: "Custom",
     websiteUrl: "",
     settingsConfig: {
-      env: {
-        OPENCODE_BASE_URL: "",
-        MODEL: "openai/gpt-4o",
+      npm: "@ai-sdk/openai-compatible",
+      name: "Custom Provider",
+      options: {
+        baseURL: "https://your-api-endpoint.com/v1",
+        apiKey: "{env:API_KEY}",
+      },
+      models: {
+        "gpt-4": {
+          name: "GPT-4",
+          limit: {
+            context: 128000,
+            output: 4096,
+          },
+        },
       },
     },
-    model: "openai/gpt-4o",
     description: "自定义 OpenCode API 端点",
     category: "custom",
   },

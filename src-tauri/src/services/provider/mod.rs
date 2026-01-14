@@ -700,13 +700,7 @@ impl ProviderService {
                     )
                 })?;
 
-                if !settings.contains_key("name") {
-                    return Err(AppError::localized(
-                        "provider.opencode.name.missing",
-                        format!("供应商 {} 缺少 name 字段", provider.id),
-                        format!("Provider {} is missing name field", provider.id),
-                    ));
-                }
+                // Validate npm field (required - specifies AI SDK package)
                 if !settings.contains_key("npm") {
                     return Err(AppError::localized(
                         "provider.opencode.npm.missing",
@@ -714,6 +708,53 @@ impl ProviderService {
                         format!("Provider {} is missing npm field", provider.id),
                     ));
                 }
+
+                // Validate npm is a string
+                if let Some(npm_value) = settings.get("npm") {
+                    if !npm_value.is_string() {
+                        return Err(AppError::localized(
+                            "provider.opencode.npm.invalid",
+                            format!("供应商 {} 的 npm 字段必须是字符串", provider.id),
+                            format!("Provider {} npm field must be a string", provider.id),
+                        ));
+                    }
+                }
+
+                // Validate options field (required)
+                if !settings.contains_key("options") {
+                    return Err(AppError::localized(
+                        "provider.opencode.options.missing",
+                        format!("供应商 {} 缺少 options 字段", provider.id),
+                        format!("Provider {} is missing options field", provider.id),
+                    ));
+                }
+
+                // Validate options is an object
+                if let Some(options_value) = settings.get("options") {
+                    if !options_value.is_object() {
+                        return Err(AppError::localized(
+                            "provider.opencode.options.invalid",
+                            format!("供应商 {} 的 options 字段必须是对象", provider.id),
+                            format!("Provider {} options field must be an object", provider.id),
+                        ));
+                    }
+
+                    // For custom providers (using @ai-sdk/openai-compatible), baseURL is required
+                    if let Some(npm_value) = settings.get("npm").and_then(|v| v.as_str()) {
+                        if npm_value.contains("openai-compatible") {
+                            let options_obj = options_value.as_object().unwrap();
+                            if !options_obj.contains_key("baseURL") {
+                                return Err(AppError::localized(
+                                    "provider.opencode.baseURL.missing",
+                                    format!("使用 @ai-sdk/openai-compatible 的供应商 {} 必须提供 baseURL", provider.id),
+                                    format!("Provider {} using @ai-sdk/openai-compatible must provide baseURL", provider.id),
+                                ));
+                            }
+                        }
+                    }
+                }
+
+                // Validate models field (required)
                 if !settings.contains_key("models") {
                     return Err(AppError::localized(
                         "provider.opencode.models.missing",
@@ -721,12 +762,16 @@ impl ProviderService {
                         format!("Provider {} is missing models field", provider.id),
                     ));
                 }
-                if !settings.contains_key("options") {
-                    return Err(AppError::localized(
-                        "provider.opencode.options.missing",
-                        format!("供应商 {} 缺少 options 字段", provider.id),
-                        format!("Provider {} is missing options field", provider.id),
-                    ));
+
+                // Validate models is an object
+                if let Some(models_value) = settings.get("models") {
+                    if !models_value.is_object() {
+                        return Err(AppError::localized(
+                            "provider.opencode.models.invalid",
+                            format!("供应商 {} 的 models 字段必须是对象", provider.id),
+                            format!("Provider {} models field must be an object", provider.id),
+                        ));
+                    }
                 }
             }
         }
@@ -863,6 +908,47 @@ impl ProviderService {
                     .get("GOOGLE_GEMINI_BASE_URL")
                     .cloned()
                     .unwrap_or_else(|| "https://generativelanguage.googleapis.com".to_string());
+
+                Ok((api_key, base_url))
+            }
+            AppType::OpenCode => {
+                // OpenCode 使用与 Claude 相同的配置结构
+                let env = provider
+                    .settings_config
+                    .get("env")
+                    .and_then(|v| v.as_object())
+                    .ok_or_else(|| {
+                        AppError::localized(
+                            "provider.opencode.env.missing",
+                            "配置格式错误: 缺少 env",
+                            "Invalid configuration: missing env section",
+                        )
+                    })?;
+
+                let api_key = env
+                    .get("ANTHROPIC_AUTH_TOKEN")
+                    .or_else(|| env.get("ANTHROPIC_API_KEY"))
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| {
+                        AppError::localized(
+                            "provider.opencode.api_key.missing",
+                            "缺少 API Key",
+                            "API key is missing",
+                        )
+                    })?
+                    .to_string();
+
+                let base_url = env
+                    .get("ANTHROPIC_BASE_URL")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| {
+                        AppError::localized(
+                            "provider.opencode.base_url.missing",
+                            "缺少 ANTHROPIC_BASE_URL 配置",
+                            "Missing ANTHROPIC_BASE_URL configuration",
+                        )
+                    })?
+                    .to_string();
 
                 Ok((api_key, base_url))
             }

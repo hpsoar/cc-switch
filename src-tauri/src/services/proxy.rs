@@ -534,7 +534,7 @@ impl ProxyService {
                         .map_err(|e| format!("获取 OpenCode 当前供应商失败: {e}"))?;
 
                 if let Some(provider_id) = provider_id {
-                    if let Ok(Some(mut provider)) =
+                    if let Ok(Some(provider)) =
                         self.db.get_provider_by_id(&provider_id, "opencode")
                     {
                         // OpenCode doesn't support token sync like other apps
@@ -1106,6 +1106,10 @@ impl ProxyService {
                     self.write_gemini_live(&config)?;
                     log::info!("Gemini Live 配置已恢复");
                 }
+            }
+            AppType::OpenCode => {
+                // OpenCode 不需要恢复 Live 配置
+                log::info!("OpenCode 不支持 Live 配置恢复");
             }
         }
 

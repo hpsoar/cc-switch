@@ -500,72 +500,123 @@ export function ProviderForm({
 
   // 使用 OpenCode 配置 hook (仅 OpenCode 模式)
   const {
-    opencodeEnv,
-    opencodeConfig,
     opencodeApiKey,
     opencodeBaseUrl,
-    opencodeModel,
-    envError: opencodeEnvError,
-    configError: opencodeConfigError,
-    handleOpenCodeApiKeyChange: originalHandleOpenCodeApiKeyChange,
-    handleOpenCodeBaseUrlChange: originalHandleOpenCodeBaseUrlChange,
-    handleOpenCodeModelChange: originalHandleOpenCodeModelChange,
-    handleOpenCodeEnvChange,
+    configError,
+    handleOpenCodeApiKeyChange,
+    handleOpenCodeBaseUrlChange,
     handleOpenCodeConfigChange,
+    handleOpenCodeHeadersChange,
     resetOpenCodeConfig,
-    envStringToObj: opencodeEnvStringToObj,
+    providerConfigJson,
+    parseProviderConfig,
   } = useOpenCodeConfigState({
     initialData: appId === "opencode" ? initialData : undefined,
   });
 
-  // 包装 OpenCode handlers 以同步 settingsConfig
-  const handleOpenCodeApiKeyChange = useCallback(
-    (key: string) => {
-      originalHandleOpenCodeApiKeyChange(key);
-      // 同步更新 settingsConfig
-      try {
-        const config = JSON.parse(form.watch("settingsConfig") || "{}");
-        if (!config.env) config.env = {};
-        config.env.OPENCODE_API_KEY = key.trim();
-        form.setValue("settingsConfig", JSON.stringify(config, null, 2));
-      } catch {
-        // ignore
-      }
+  const [opencodeHeaders, setOpencodeHeaders] = useState<
+    Record<string, string>
+  >({});
+
+  const handleOpenCodeConfigChangeWithSync = useCallback(
+    (value: string) => {
+      handleOpenCodeConfigChange(value);
+      form.setValue("settingsConfig", value);
     },
-    [originalHandleOpenCodeApiKeyChange, form],
+    [handleOpenCodeConfigChange, form],
   );
 
-  const handleOpenCodeBaseUrlChange = useCallback(
-    (url: string) => {
-      originalHandleOpenCodeBaseUrlChange(url);
-      // 同步更新 settingsConfig
-      try {
-        const config = JSON.parse(form.watch("settingsConfig") || "{}");
-        if (!config.env) config.env = {};
-        config.env.OPENCODE_BASE_URL = url.trim().replace(/\/+$/, "");
-        form.setValue("settingsConfig", JSON.stringify(config, null, 2));
-      } catch {
-        // ignore
-      }
-    },
-    [originalHandleOpenCodeBaseUrlChange, form],
-  );
+  // 监听Provider Name字段变化，同步到OpenCode配置
+  useEffect(() => {
+    if (appId !== "opencode") return;
 
-  const handleOpenCodeModelChange = useCallback(
-    (model: string) => {
-      originalHandleOpenCodeModelChange(model);
-      // 同步更新 settingsConfig
-      try {
-        const config = JSON.parse(form.watch("settingsConfig") || "{}");
-        if (!config.env) config.env = {};
-        config.env.MODEL = model.trim();
-        form.setValue("settingsConfig", JSON.stringify(config, null, 2));
-      } catch {
-        // ignore
+    const name = form.watch("name");
+    if (!name || !name.trim()) return;
+
+    const parsed = parseProviderConfig(providerConfigJson);
+    if (parsed && parsed.name !== name.trim()) {
+      const updated = {
+        ...parsed,
+        name: name.trim(),
+      };
+      const newJson = JSON.stringify(updated, null, 2);
+      handleOpenCodeConfigChange(newJson);
+    }
+  }, [
+    appId,
+    providerConfigJson,
+    parseProviderConfig,
+    handleOpenCodeConfigChange,
+    form,
+  ]);
+
+  useEffect(() => {
+    if (appId === "opencode" && providerConfigJson) {
+      form.setValue("settingsConfig", providerConfigJson);
+
+      const parsed = parseProviderConfig(providerConfigJson);
+      if (parsed?.name) {
+        const currentName = form.getValues("name");
+        if (currentName !== parsed.name) {
+          form.setValue("name", parsed.name);
+        }
       }
-    },
-    [originalHandleOpenCodeModelChange, form],
-  );
+    }
+  }, [appId, providerConfigJson, form, parseProviderConfig]);
+
+  // 监听opencodeHeaders变化，同步到JSON配置
+  useEffect(() => {
+    if (appId !== "opencode") return;
+
+    const parsed = parseProviderConfig(providerConfigJson);
+    if (!parsed) return;
+
+    const currentHeaders = parsed.options?.headers || {};
+    if (JSON.stringify(currentHeaders) !== JSON.stringify(opencodeHeaders)) {
+      const updated = {
+        ...parsed,
+        options: {
+          ...parsed.options,
+          headers: opencodeHeaders,
+        },
+      };
+      const newJson = JSON.stringify(updated, null, 2);
+      handleOpenCodeConfigChange(newJson);
+    }
+  }, [
+    appId,
+    providerConfigJson,
+    opencodeHeaders,
+    parseProviderConfig,
+    handleOpenCodeConfigChange,
+  ]);
+
+  // 监听opencodeHeaders变化，同步到JSON配置
+  useEffect(() => {
+    if (appId !== "opencode") return;
+
+    const parsed = parseProviderConfig(providerConfigJson);
+    if (!parsed) return;
+
+    const currentHeaders = parsed.options?.headers || {};
+    if (JSON.stringify(currentHeaders) !== JSON.stringify(opencodeHeaders)) {
+      const updated = {
+        ...parsed,
+        options: {
+          ...parsed.options,
+          headers: opencodeHeaders,
+        },
+      };
+      const newJson = JSON.stringify(updated, null, 2);
+      handleOpenCodeConfigChange(newJson);
+    }
+  }, [
+    appId,
+    providerConfigJson,
+    opencodeHeaders,
+    parseProviderConfig,
+    handleOpenCodeConfigChange,
+  ]);
 
   const [isCommonConfigModalOpen, setIsCommonConfigModalOpen] = useState(false);
 
@@ -697,21 +748,8 @@ export function ProviderForm({
         settingsConfig = values.settingsConfig.trim();
       }
     } else if (appId === "opencode") {
-      // OpenCode: 组合 env 和 config
-      try {
-        const envObj = opencodeEnvStringToObj(opencodeEnv);
-        const configObj = opencodeConfig.trim()
-          ? JSON.parse(opencodeConfig)
-          : {};
-        const combined = {
-          env: envObj,
-          config: configObj,
-        };
-        settingsConfig = JSON.stringify(combined);
-      } catch (err) {
-        // 如果解析失败，使用表单中的配置
-        settingsConfig = values.settingsConfig.trim();
-      }
+      // OpenCode: 直接使用 providerConfigJson
+      settingsConfig = providerConfigJson.trim();
     } else {
       // Claude: 使用表单配置
       settingsConfig = values.settingsConfig.trim();
@@ -1118,9 +1156,8 @@ export function ProviderForm({
             onCustomEndpointsChange={setDraftCustomEndpoints}
             autoSelect={endpointAutoSelect}
             onAutoSelectChange={setEndpointAutoSelect}
-            shouldShowModelField={true}
-            model={opencodeModel}
-            onModelChange={handleOpenCodeModelChange}
+            headers={opencodeHeaders}
+            onHeadersChange={setOpencodeHeaders}
             speedTestEndpoints={speedTestEndpoints}
           />
         )}
@@ -1187,19 +1224,9 @@ export function ProviderForm({
         ) : appId === "opencode" ? (
           <>
             <OpenCodeConfigEditor
-              envValue={opencodeEnv}
-              configValue={opencodeConfig}
-              onEnvChange={handleOpenCodeEnvChange}
-              onConfigChange={handleOpenCodeConfigChange}
-              useCommonConfig={false}
-              onCommonConfigToggle={() => {}}
-              commonConfigSnippet=""
-              onCommonConfigSnippetChange={() => {}}
-              commonConfigError=""
-              envError={opencodeEnvError}
-              configError={opencodeConfigError}
-              onExtract={() => {}}
-              isExtracting={false}
+              providerConfigValue={providerConfigJson}
+              onProviderConfigChange={handleOpenCodeConfigChangeWithSync}
+              configError={configError}
             />
             {/* 配置验证错误显示 */}
             <FormField

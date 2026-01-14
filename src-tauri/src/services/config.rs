@@ -236,7 +236,6 @@ impl ConfigService {
             fs::create_dir_all(parent).map_err(|e| AppError::io(parent, e))?;
         }
 
-        // Merge provider config with existing opencode config
         let mut opencode_config = if config_path.exists() {
             read_json_file(&config_path).unwrap_or_else(|_| {
                 json!({
@@ -257,11 +256,7 @@ impl ConfigService {
 
         if let Some(provider_obj) = opencode_config.get_mut("provider") {
             if let Some(p) = provider_obj.as_object_mut() {
-                if let Some(settings_obj) = provider.settings_config.as_object() {
-                    for (key, value) in settings_obj.iter() {
-                        p.insert(key.clone(), value.clone());
-                    }
-                }
+                p.insert(provider_id.to_string(), provider.settings_config.clone());
             }
         }
 

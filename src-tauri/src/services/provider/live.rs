@@ -99,14 +99,6 @@ impl LiveSnapshot {
                     _ => {}
                 }
             }
-            LiveSnapshot::OpenCode { config, .. } => {
-                let path = crate::opencode_config::get_opencode_config_path();
-                if let Some(cfg) = config {
-                    write_opencode_config(cfg)?;
-                } else if path.exists() {
-                    delete_file(&path)?;
-                }
-            }
         }
         Ok(())
     }

@@ -1,140 +1,20 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import JsonEditor from "@/components/JsonEditor";
+import { OpenCodeModelConfig } from "./OpenCodeModelConfig";
 
-interface OpenCodeEnvSectionProps {
-  value: string;
-  onChange: (value: string) => void;
-  onBlur?: () => void;
-  error?: string;
-  useCommonConfig: boolean;
-  onCommonConfigToggle: (checked: boolean) => void;
-  onEditCommonConfig: () => void;
-  commonConfigError?: string;
-}
-
-/**
- * OpenCodeEnvSection - .env editor section for OpenCode environment variables
- */
-export const OpenCodeEnvSection: React.FC<OpenCodeEnvSectionProps> = ({
-  value,
-  onChange,
-  onBlur,
-  error,
-  useCommonConfig,
-  onCommonConfigToggle,
-  onEditCommonConfig,
-  commonConfigError,
-}) => {
-  const { t } = useTranslation();
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  useEffect(() => {
-    setIsDarkMode(document.documentElement.classList.contains("dark"));
-
-    const observer = new MutationObserver(() => {
-      setIsDarkMode(document.documentElement.classList.contains("dark"));
-    });
-
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-
-    return () => observer.disconnect();
-  }, []);
-
-  const handleChange = (newValue: string) => {
-    onChange(newValue);
-    if (onBlur) {
-      onBlur();
-    }
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <label
-          htmlFor="opencodeEnv"
-          className="block text-sm font-medium text-foreground"
-        >
-          {t("opencodeConfig.envFile", { defaultValue: "环境变量 (.env)" })}
-        </label>
-
-        <label className="inline-flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
-          <input
-            type="checkbox"
-            checked={useCommonConfig}
-            onChange={(e) => onCommonConfigToggle(e.target.checked)}
-            className="w-4 h-4 text-blue-500 bg-white dark:bg-gray-800 border-border-default rounded focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-2"
-          />
-          {t("opencodeConfig.writeCommonConfig", {
-            defaultValue: "写入通用配置",
-          })}
-        </label>
-      </div>
-
-      <div className="flex items-center justify-end">
-        <button
-          type="button"
-          onClick={onEditCommonConfig}
-          className="text-xs text-blue-500 dark:text-blue-400 hover:underline"
-        >
-          {t("opencodeConfig.editCommonConfig", {
-            defaultValue: "编辑通用配置",
-          })}
-        </button>
-      </div>
-
-      {commonConfigError && (
-        <p className="text-xs text-red-500 dark:text-red-400 text-right">
-          {commonConfigError}
-        </p>
-      )}
-
-      <JsonEditor
-        value={value}
-        onChange={handleChange}
-        placeholder={`OPENCODE_BASE_URL=https://your-api-endpoint.com/
-OPENCODE_API_KEY=sk-your-api-key-here
-MODEL=openai/gpt-4o`}
-        darkMode={isDarkMode}
-        rows={6}
-        showValidation={false}
-        language="javascript"
-      />
-
-      {error && (
-        <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
-      )}
-
-      {!error && (
-        <p className="text-xs text-muted-foreground">
-          {t("opencodeConfig.envFileHint", {
-            defaultValue: "使用 .env 格式配置 OpenCode 环境变量",
-          })}
-        </p>
-      )}
-    </div>
-  );
-};
-
-interface OpenCodeConfigSectionProps {
+interface OpenCodeProviderSectionProps {
   value: string;
   onChange: (value: string) => void;
   configError?: string;
 }
 
-/**
- * OpenCodeConfigSection - Config JSON editor section with common config support
- */
-export const OpenCodeConfigSection: React.FC<OpenCodeConfigSectionProps> = ({
-  value,
-  onChange,
-  configError,
-}) => {
+export const OpenCodeProviderSection: React.FC<
+  OpenCodeProviderSectionProps
+> = ({ value, onChange, configError }) => {
   const { t } = useTranslation();
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [models, setModels] = useState<Record<string, any>>({});
 
   useEffect(() => {
     setIsDarkMode(document.documentElement.classList.contains("dark"));
@@ -151,14 +31,79 @@ export const OpenCodeConfigSection: React.FC<OpenCodeConfigSectionProps> = ({
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object" && parsed.models) {
+        setModels(parsed.models);
+      }
+    } catch {
+      setModels({});
+    }
+  }, [value]);
+
+  const handleAddModel = (modelId: string, config: any) => {
+    try {
+      const parsed = JSON.parse(value);
+      const updated = {
+        ...parsed,
+        models: {
+          ...parsed.models,
+          [modelId]: config,
+        },
+      };
+      onChange(JSON.stringify(updated, null, 2));
+    } catch {
+      const baseConfig = {
+        npm: "@ai-sdk/openai-compatible",
+        name: "Custom Provider",
+        options: {
+          baseURL: "",
+          apiKey: "{env:API_KEY}",
+        },
+        models: {
+          [modelId]: config,
+        },
+      };
+      onChange(JSON.stringify(baseConfig, null, 2));
+    }
+  };
+
+  const handleRemoveModel = (modelId: string) => {
+    try {
+      const parsed = JSON.parse(value);
+      const newModels = { ...parsed.models };
+      delete newModels[modelId];
+      const updated = {
+        ...parsed,
+        models: newModels,
+      };
+      onChange(JSON.stringify(updated, null, 2));
+    } catch {}
+  };
+
+  const handleUpdateModel = (modelId: string, config: any) => {
+    try {
+      const parsed = JSON.parse(value);
+      const updated = {
+        ...parsed,
+        models: {
+          ...parsed.models,
+          [modelId]: config,
+        },
+      };
+      onChange(JSON.stringify(updated, null, 2));
+    } catch {}
+  };
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       <label
-        htmlFor="opencodeConfig"
+        htmlFor="opencodeProviderConfig"
         className="block text-sm font-medium text-foreground"
       >
-        {t("opencodeConfig.configJson", {
-          defaultValue: "配置文件 (config.json)",
+        {t("opencodeConfig.providerConfig", {
+          defaultValue: "供应商配置 (JSON)",
         })}
       </label>
 
@@ -166,11 +111,27 @@ export const OpenCodeConfigSection: React.FC<OpenCodeConfigSectionProps> = ({
         value={value}
         onChange={onChange}
         placeholder={`{
-  "timeout": 30000,
-  "maxRetries": 3
+  "npm": "@ai-sdk/openai-compatible",
+  "name": "My Provider",
+  "options": {
+    "baseURL": "https://api.example.com/v1",
+    "apiKey": "{env:API_KEY}",
+    "headers": {
+      "X-Custom-Header": "value"
+    }
+  },
+  "models": {
+    "gpt-4": {
+      "name": "GPT-4",
+      "limit": {
+        "context": 128000,
+        "output": 4096
+      }
+    }
+  }
 }`}
         darkMode={isDarkMode}
-        rows={8}
+        rows={12}
         showValidation={true}
         language="json"
       />
@@ -181,11 +142,21 @@ export const OpenCodeConfigSection: React.FC<OpenCodeConfigSectionProps> = ({
 
       {!configError && (
         <p className="text-xs text-muted-foreground">
-          {t("opencodeConfig.configJsonHint", {
-            defaultValue: "使用 JSON 格式配置 OpenCode 扩展参数（可选）",
+          {t("opencodeConfig.providerConfigHint", {
+            defaultValue:
+              "使用 JSON 格式配置 OpenCode 供应商。必需字段: npm, options, models。详情请参阅 https://opencode.ai/docs/providers/",
           })}
         </p>
       )}
+
+      <OpenCodeModelConfig
+        models={models}
+        onAddModel={handleAddModel}
+        onRemoveModel={handleRemoveModel}
+        onUpdateModel={handleUpdateModel}
+      />
     </div>
   );
 };
+
+export default OpenCodeProviderSection;

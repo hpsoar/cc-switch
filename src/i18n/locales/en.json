@@ -327,6 +327,13 @@
     "websiteUrlPlaceholder": "https://example.com (optional)",
     "apiEndpoint": "API Endpoint",
     "apiEndpointPlaceholder": "https://your-api-endpoint.com",
+    "opencode": {
+      "title": "OpenCode Configuration",
+      "hint": "OpenCode uses JSON config files to manage providers. Configure the npm package, API endpoint, and model information below. See https://opencode.ai/docs/providers/ for details",
+      "providerName": "Provider Name",
+      "headers": "Custom Headers",
+      "addHeader": "Add Header"
+    },
     "codexApiEndpointPlaceholder": "https://your-api-endpoint.com/v1",
     "manageAndTest": "Manage & Test",
     "configContent": "Config Content",
@@ -469,14 +476,15 @@
     "rangeToday": "Last 24 hours (hourly)",
     "rangeLast7Days": "Last 7 days",
     "opencodeConfig": {
-      "envFile": "Environment Variables",
-      "envFileHint": "Configure OpenCode environment variables using .env format",
-      "configJson": "Configuration File",
-      "configJsonHint": "Configure OpenCode extended parameters using JSON format (optional)",
-      "writeCommonConfig": "Write Common Config",
-      "editCommonConfig": "Edit Common Config",
-      "editCommonConfigTitle": "Edit OpenCode Common Config Snippet",
-      "commonConfigHint": "This snippet will be written to OpenCode .env (OPENCODE_BASE_URL and OPENCODE_API_KEY are not allowed)"
+      "providerConfig": "Provider Configuration (JSON)",
+      "providerConfigHint": "Configure OpenCode provider using JSON format. Required fields: npm, options, models. See https://opencode.ai/docs/providers/ for details",
+      "models": "Model Configuration",
+      "modelId": "Model ID",
+      "modelName": "Display Name",
+      "contextLimit": "Context Limit",
+      "outputLimit": "Output Limit",
+      "addModel": "Add New Model",
+      "addModelButton": "Add Model"
     },
     "rangeLast30Days": "Last 30 days",
     "totalTokens": "Total Tokens",

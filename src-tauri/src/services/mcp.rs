@@ -51,7 +51,7 @@ impl McpService {
     pub fn delete_server(state: &AppState, id: &str) -> Result<bool, AppError> {
         let server = state.db.get_all_mcp_servers()?.shift_remove(id);
 
-        if let Some(server) = server {
+        if let Some(_server) = server {
             state.db.delete_mcp_server(id)?;
 
             // 从所有应用的 live 配置中移除
@@ -313,7 +313,7 @@ impl McpService {
     }
 
     pub fn import_from_opencode(state: &AppState) -> Result<usize, AppError> {
-        let mut temp_config = crate::app_config::MultiAppConfig::default();
+        let temp_config = crate::app_config::MultiAppConfig::default();
         let count = crate::opencode_mcp::import_from_opencode()?;
 
         let mut new_count = 0;

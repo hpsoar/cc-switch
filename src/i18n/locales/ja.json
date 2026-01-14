@@ -327,6 +327,13 @@
     "websiteUrlPlaceholder": "https://example.com（任意）",
     "apiEndpoint": "API エンドポイント",
     "apiEndpointPlaceholder": "https://your-api-endpoint.com",
+    "opencode": {
+      "title": "OpenCode 設定",
+      "hint": "OpenCode は JSON 設定ファイルを使用してプロバイダーを管理します。以下で npm パッケージ、API エンドポイント、モデル情報を設定してください。詳細は https://opencode.ai/docs/providers/ を参照してください",
+      "providerName": "プロバイダー名",
+      "headers": "カスタムヘッダー",
+      "addHeader": "ヘッダーを追加"
+    },
     "codexApiEndpointPlaceholder": "https://your-api-endpoint.com/v1",
     "manageAndTest": "管理・テスト",
     "configContent": "設定内容",
@@ -469,14 +476,15 @@
     "rangeToday": "直近24時間 (時間別)",
     "rangeLast7Days": "過去7日間",
     "opencodeConfig": {
-      "envFile": "環境変数",
-      "envFileHint": ".env 形式で OpenCode の環境変数を設定",
-      "configJson": "設定ファイル",
-      "configJsonHint": "JSON 形式で OpenCode の拡張パラメータを設定（オプション）",
-      "writeCommonConfig": "共通設定を書き込み",
-      "editCommonConfig": "共通設定を編集",
-      "editCommonConfigTitle": "OpenCode 共通設定スニペットを編集",
-      "commonConfigHint": "このスニペットは OpenCode の .env に書き込まれます（OPENCODE_BASE_URL、OPENCODE_API_KEY は許可されません）"
+      "providerConfig": "プロバイダー設定 (JSON)",
+      "providerConfigHint": "JSON 形式で OpenCode プロバイダーを設定します。必須フィールド: npm, options, models。詳細は https://opencode.ai/docs/providers/ を参照してください",
+      "models": "モデル設定",
+      "modelId": "モデル ID",
+      "modelName": "表示名",
+      "contextLimit": "コンテキスト制限",
+      "outputLimit": "出力制限",
+      "addModel": "新しいモデルを追加",
+      "addModelButton": "モデルを追加"
     },
     "rangeLast30Days": "過去30日間",
     "totalTokens": "総トークン数",

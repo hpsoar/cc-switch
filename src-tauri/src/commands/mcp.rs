@@ -8,6 +8,7 @@ use tauri::State;
 
 use crate::app_config::AppType;
 use crate::claude_mcp;
+use crate::opencode_mcp;
 use crate::services::McpService;
 use crate::store::AppState;
 
@@ -15,6 +16,12 @@ use crate::store::AppState;
 #[tauri::command]
 pub async fn get_claude_mcp_status() -> Result<claude_mcp::McpStatus, String> {
     claude_mcp::get_mcp_status().map_err(|e| e.to_string())
+}
+
+/// 获取 OpenCode MCP 状态
+#[tauri::command]
+pub async fn get_opencode_mcp_status() -> Result<opencode_mcp::McpStatus, String> {
+    opencode_mcp::get_mcp_status().map_err(|e| e.to_string())
 }
 
 /// 读取 mcp.json 文本内容
@@ -200,5 +207,6 @@ pub async fn import_mcp_from_apps(state: State<'_, AppState>) -> Result<usize, S
     total += McpService::import_from_claude(&state).unwrap_or(0);
     total += McpService::import_from_codex(&state).unwrap_or(0);
     total += McpService::import_from_gemini(&state).unwrap_or(0);
+    total += McpService::import_from_opencode(&state).unwrap_or(0);
     Ok(total)
 }

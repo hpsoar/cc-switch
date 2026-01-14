@@ -13,6 +13,10 @@ export const mcpApi = {
     return await invoke("get_claude_mcp_status");
   },
 
+  async getOpenCodeStatus(): Promise<McpStatus> {
+    return await invoke("get_opencode_mcp_status");
+  },
+
   async readConfig(): Promise<string | null> {
     return await invoke("read_claude_mcp_config");
   },

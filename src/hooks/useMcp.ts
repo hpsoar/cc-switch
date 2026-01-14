@@ -14,6 +14,26 @@ export function useAllMcpServers() {
 }
 
 /**
+ * 查询 Claude MCP 状态（从配置文件读取）
+ */
+export function useClaudeMcpStatus() {
+  return useQuery({
+    queryKey: ["mcp", "status", "claude"],
+    queryFn: () => mcpApi.getStatus(),
+  });
+}
+
+/**
+ * 查询 OpenCode MCP 状态（从配置文件读取）
+ */
+export function useOpenCodeMcpStatus() {
+  return useQuery({
+    queryKey: ["mcp", "status", "opencode"],
+    queryFn: () => mcpApi.getOpenCodeStatus(),
+  });
+}
+
+/**
  * 添加或更新 MCP 服务器
  */
 export function useUpsertMcpServer() {

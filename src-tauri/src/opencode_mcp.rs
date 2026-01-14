@@ -1,8 +1,18 @@
 use std::collections::HashMap;
 
+use crate::app_config::McpApps;
 use crate::error::AppError;
-use crate::opencode_config::{read_opencode_config, write_opencode_config};
+use crate::opencode_config::{get_opencode_config_path, read_opencode_config, write_opencode_config};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpStatus {
+    pub user_config_path: String,
+    pub user_config_exists: bool,
+    pub server_count: usize,
+}
 
 pub fn sync_single_server_to_opencode(
     _ctx: &(),
@@ -63,15 +73,20 @@ pub fn remove_server_from_opencode(server_id: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-pub fn import_from_opencode() -> Result<HashMap<String, Value>, AppError> {
-    let config = read_opencode_config()?;
-    let mcp = config
+/// 从 OpenCode 配置导入 MCP 服务器到 MultiAppConfig
+///
+/// 此函数与其他导入函数（import_from_claude, import_from_codex）保持一致的接口
+/// 将 OpenCode 配置文件中的 MCP 服务器读取并填充到 config.mcp.servers 中
+pub fn import_from_opencode(config: &mut crate::app_config::MultiAppConfig) -> Result<usize, AppError> {
+    let opencode_config = read_opencode_config()?;
+    let mcp = opencode_config
         .as_object()
         .and_then(|obj| obj.get("mcp"))
         .and_then(|v| v.as_object())
         .ok_or_else(|| AppError::Config("OpenCode 配置缺少 mcp 字段".to_string()))?;
 
-    let mut servers = HashMap::new();
+    let servers = config.mcp.servers.get_or_insert_with(HashMap::new);
+
     for (id, entry) in mcp {
         let entry_obj = entry
             .as_object()
@@ -100,8 +115,44 @@ pub fn import_from_opencode() -> Result<HashMap<String, Value>, AppError> {
             }
         };
 
-        servers.insert(id.clone(), server_config);
+        // 创建 McpServer 结构，默认启用 OpenCode
+        let name = id.clone();
+        let mut apps = McpApps::default();
+        apps.opencode = true;
+
+        let server = crate::app_config::McpServer {
+            id: id.clone(),
+            name,
+            server: server_config,
+            apps,
+            description: None,
+            homepage: None,
+            docs: None,
+            tags: Vec::new(),
+        };
+
+        servers.insert(id.clone(), server);
     }
 
-    Ok(servers)
+    Ok(servers.len())
+}
+
+pub fn get_mcp_status() -> Result<McpStatus, AppError> {
+    let path = get_opencode_config_path();
+    let (exists, count) = if path.exists() {
+        let config = read_opencode_config()?;
+        let mcp = config
+            .as_object()
+            .and_then(|obj| obj.get("mcp"))
+            .and_then(|v| v.as_object());
+        (true, mcp.map(|m| m.len()).unwrap_or(0))
+    } else {
+        (false, 0)
+    };
+
+    Ok(McpStatus {
+        user_config_path: path.to_string_lossy().to_string(),
+        user_config_exists: exists,
+        server_count: count,
+    })
 }

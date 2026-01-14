@@ -312,26 +312,38 @@ impl McpService {
         Ok(new_count)
     }
 
+    /// 从 OpenCode 导入 MCP（v3.7.0 已更新为统一结构）
     pub fn import_from_opencode(state: &AppState) -> Result<usize, AppError> {
-        let temp_config = crate::app_config::MultiAppConfig::default();
-        let count = crate::opencode_mcp::import_from_opencode()?;
+        // 创建临时 MultiAppConfig 用于导入
+        let mut temp_config = crate::app_config::MultiAppConfig::default();
+
+        // 调用导入逻辑（从 opencode_mcp.rs）
+        let count = crate::opencode_mcp::import_from_opencode(&mut temp_config)?;
 
         let mut new_count = 0;
-        if !count.is_empty() {
-            let mut existing = state.db.get_all_mcp_servers()?;
-            for (id, server_config) in &temp_config.mcp.servers.unwrap_or_default() {
-                let to_save = if let Some(existing_server) = existing.get(id) {
-                    let mut merged = existing_server.clone();
-                    merged.apps.opencode = true;
-                    merged
-                } else {
-                    new_count += 1;
-                    server_config.clone()
-                };
 
-                state.db.save_mcp_server(&to_save)?;
-                existing.insert(to_save.id.clone(), to_save.clone());
-                Self::sync_server_to_apps(state, &to_save)?;
+        // 如果有导入的服务器，保存到数据库
+        if count > 0 {
+            if let Some(servers) = &temp_config.mcp.servers {
+                let mut existing = state.db.get_all_mcp_servers()?;
+                for server in servers.values() {
+                    // 已存在：仅启用 OpenCode，不覆盖其他字段
+                    let to_save = if let Some(existing_server) = existing.get(&server.id) {
+                        let mut merged = existing_server.clone();
+                        merged.apps.opencode = true;
+                        merged
+                    } else {
+                        // 真正的新服务器
+                        new_count += 1;
+                        server.clone()
+                    };
+
+                    state.db.save_mcp_server(&to_save)?;
+                    existing.insert(to_save.id.clone(), to_save.clone());
+
+                    // 同步到对应应用 live 配置
+                    Self::sync_server_to_apps(state, &to_save)?;
+                }
             }
         }
 

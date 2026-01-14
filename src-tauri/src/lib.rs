@@ -757,6 +757,8 @@ pub fn run() {
             commands::upsert_claude_mcp_server,
             commands::delete_claude_mcp_server,
             commands::validate_mcp_command,
+            // OpenCode MCP management
+            commands::get_opencode_mcp_status,
             // usage query
             commands::queryProviderUsage,
             commands::testUsageScript,

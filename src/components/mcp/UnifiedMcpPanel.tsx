@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
   useAllMcpServers,
+  useOpenCodeMcpStatus,
   useToggleMcpApp,
   useDeleteMcpServer,
   useImportMcpFromApps,
@@ -48,6 +49,7 @@ const UnifiedMcpPanel = React.forwardRef<
 
   // Queries and Mutations
   const { data: serversMap, isLoading } = useAllMcpServers();
+  const { data: openCodeStatus } = useOpenCodeMcpStatus();
   const toggleAppMutation = useToggleMcpApp();
   const deleteServerMutation = useDeleteMcpServer();
   const importMutation = useImportMcpFromApps();
@@ -65,6 +67,7 @@ const UnifiedMcpPanel = React.forwardRef<
   }, [serverEntries, filterApp]);
 
   // Count enabled servers per app
+  // For OpenCode, use the count from the config file instead of the database
   const enabledCounts = useMemo(() => {
     const counts = { claude: 0, codex: 0, gemini: 0, opencode: 0 };
     serverEntries.forEach(([_, server]) => {
@@ -73,8 +76,12 @@ const UnifiedMcpPanel = React.forwardRef<
       if (server.apps.gemini) counts.gemini++;
       if (server.apps.opencode) counts.opencode++;
     });
+    // Override OpenCode count with the actual count from config file
+    if (openCodeStatus) {
+      counts.opencode = openCodeStatus.serverCount;
+    }
     return counts;
-  }, [serverEntries]);
+  }, [serverEntries, openCodeStatus]);
 
   const handleToggleApp = async (
     serverId: string,

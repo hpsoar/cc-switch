@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslation } from "react-i18next";
@@ -70,11 +70,13 @@ const GEMINI_DEFAULT_CONFIG = JSON.stringify(
 );
 const OPENCODE_DEFAULT_CONFIG = JSON.stringify(
   {
-    env: {
-      OPENCODE_BASE_URL: "",
-      OPENCODE_API_KEY: "",
-      MODEL: "openai/gpt-4o",
+    npm: "@ai-sdk/openai-compatible",
+    name: "",
+    options: {
+      baseURL: "",
+      apiKey: "{env:API_KEY}",
     },
+    models: {},
   },
   null,
   2,
@@ -506,7 +508,6 @@ export function ProviderForm({
     handleOpenCodeApiKeyChange,
     handleOpenCodeBaseUrlChange,
     handleOpenCodeConfigChange,
-    handleOpenCodeHeadersChange,
     resetOpenCodeConfig,
     providerConfigJson,
     parseProviderConfig,
@@ -530,18 +531,24 @@ export function ProviderForm({
   useEffect(() => {
     if (appId !== "opencode") return;
 
-    const name = form.watch("name");
-    if (!name || !name.trim()) return;
+    const subscription = form.watch((value, { name: fieldName }) => {
+      if (fieldName !== "name") return;
 
-    const parsed = parseProviderConfig(providerConfigJson);
-    if (parsed && parsed.name !== name.trim()) {
-      const updated = {
-        ...parsed,
-        name: name.trim(),
-      };
-      const newJson = JSON.stringify(updated, null, 2);
-      handleOpenCodeConfigChange(newJson);
-    }
+      const name = value.name;
+      if (!name || !name.trim()) return;
+
+      const parsed = parseProviderConfig(providerConfigJson);
+      if (parsed && parsed.name !== name.trim()) {
+        const updated = {
+          ...parsed,
+          name: name.trim(),
+        };
+        const newJson = JSON.stringify(updated, null, 2);
+        handleOpenCodeConfigChange(newJson);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, [
     appId,
     providerConfigJson,
@@ -550,73 +557,72 @@ export function ProviderForm({
     form,
   ]);
 
+  // 监听OpenCode配置变化，同步到表单
   useEffect(() => {
-    if (appId === "opencode" && providerConfigJson) {
-      form.setValue("settingsConfig", providerConfigJson);
+    if (appId !== "opencode" || !providerConfigJson) return;
 
-      const parsed = parseProviderConfig(providerConfigJson);
-      if (parsed?.name) {
-        const currentName = form.getValues("name");
-        if (currentName !== parsed.name) {
-          form.setValue("name", parsed.name);
-        }
+    form.setValue("settingsConfig", providerConfigJson);
+
+    const parsed = parseProviderConfig(providerConfigJson);
+    if (parsed?.name) {
+      const currentName = form.getValues("name");
+      // 只在初始化或JSON编辑器直接修改时更新name字段
+      // 避免与name字段的onBlur/onChange冲突
+      if (!currentName || (currentName !== parsed.name && document.activeElement?.id !== 'name')) {
+        form.setValue("name", parsed.name, { shouldValidate: false });
       }
     }
   }, [appId, providerConfigJson, form, parseProviderConfig]);
 
-  // 监听opencodeHeaders变化，同步到JSON配置
+  // 从JSON配置中提取headers（初始化 + JSON编辑器直接修改时）
+  const prevProviderConfigJsonRef = useRef<string>("");
+  const isUpdatingFromUIRef = useRef<boolean>(false);
+
   useEffect(() => {
-    if (appId !== "opencode") return;
+    if (appId !== "opencode" || !providerConfigJson) return;
+
+    // 如果是通过UI触发的更新，跳过
+    if (isUpdatingFromUIRef.current) {
+      isUpdatingFromUIRef.current = false;
+      prevProviderConfigJsonRef.current = providerConfigJson;
+      return;
+    }
+
+    // 只有在JSON真正改变时才更新（避免初始化时的重复更新）
+    if (prevProviderConfigJsonRef.current === providerConfigJson) return;
 
     const parsed = parseProviderConfig(providerConfigJson);
     if (!parsed) return;
 
-    const currentHeaders = parsed.options?.headers || {};
-    if (JSON.stringify(currentHeaders) !== JSON.stringify(opencodeHeaders)) {
+    const configHeaders = parsed.options?.headers || {};
+    setOpencodeHeaders(configHeaders);
+    prevProviderConfigJsonRef.current = providerConfigJson;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appId, providerConfigJson]);
+
+  // 当用户通过UI修改headers时，同步到JSON配置
+  const handleOpenCodeHeadersChangeWithSync = useCallback(
+    (headers: Record<string, string>) => {
+      setOpencodeHeaders(headers);
+
+      const parsed = parseProviderConfig(providerConfigJson);
+      if (!parsed) return;
+
       const updated = {
         ...parsed,
         options: {
           ...parsed.options,
-          headers: opencodeHeaders,
+          headers,
         },
       };
       const newJson = JSON.stringify(updated, null, 2);
+
+      // 标记这是从UI触发的更新
+      isUpdatingFromUIRef.current = true;
       handleOpenCodeConfigChange(newJson);
-    }
-  }, [
-    appId,
-    providerConfigJson,
-    opencodeHeaders,
-    parseProviderConfig,
-    handleOpenCodeConfigChange,
-  ]);
-
-  // 监听opencodeHeaders变化，同步到JSON配置
-  useEffect(() => {
-    if (appId !== "opencode") return;
-
-    const parsed = parseProviderConfig(providerConfigJson);
-    if (!parsed) return;
-
-    const currentHeaders = parsed.options?.headers || {};
-    if (JSON.stringify(currentHeaders) !== JSON.stringify(opencodeHeaders)) {
-      const updated = {
-        ...parsed,
-        options: {
-          ...parsed.options,
-          headers: opencodeHeaders,
-        },
-      };
-      const newJson = JSON.stringify(updated, null, 2);
-      handleOpenCodeConfigChange(newJson);
-    }
-  }, [
-    appId,
-    providerConfigJson,
-    opencodeHeaders,
-    parseProviderConfig,
-    handleOpenCodeConfigChange,
-  ]);
+    },
+    [providerConfigJson, parseProviderConfig, handleOpenCodeConfigChange],
+  );
 
   const [isCommonConfigModalOpen, setIsCommonConfigModalOpen] = useState(false);
 
@@ -1157,7 +1163,7 @@ export function ProviderForm({
             autoSelect={endpointAutoSelect}
             onAutoSelectChange={setEndpointAutoSelect}
             headers={opencodeHeaders}
-            onHeadersChange={setOpencodeHeaders}
+            onHeadersChange={handleOpenCodeHeadersChangeWithSync}
             speedTestEndpoints={speedTestEndpoints}
           />
         )}

@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { useMemo, useRef } from "react";
 import { Info } from "lucide-react";
 import EndpointSpeedTest from "./EndpointSpeedTest";
 import { ApiKeySection, EndpointField } from "./shared";
@@ -58,6 +59,32 @@ export function OpenCodeFormFields({
 }: OpenCodeFormFieldsProps) {
   const { t } = useTranslation();
 
+  // 为每个header维护一个稳定的ID映射，避免React key变化导致重新渲染
+  const headerIdMapRef = useRef<Map<string, string>>(new Map());
+  const nextIdRef = useRef(0);
+
+  const headerEntries = useMemo(() => {
+    const entries = Object.entries(headers);
+    const currentKeys = new Set(entries.map(([key]) => key));
+
+    // 清理已删除的header的ID映射
+    for (const [oldKey] of Array.from(headerIdMapRef.current.entries())) {
+      if (!currentKeys.has(oldKey)) {
+        headerIdMapRef.current.delete(oldKey);
+      }
+    }
+
+    // 为新header分配稳定的ID
+    return entries.map(([key, value]) => {
+      let id = headerIdMapRef.current.get(key);
+      if (!id) {
+        id = `header-${nextIdRef.current++}`;
+        headerIdMapRef.current.set(key, id);
+      }
+      return { id, key, value };
+    });
+  }, [headers]);
+
   const handleHeaderChange = (
     oldKey: string,
     newKey: string,
@@ -65,14 +92,23 @@ export function OpenCodeFormFields({
   ) => {
     const newHeaders = { ...headers };
 
-    if (oldKey !== newKey) {
+    // 如果key改变了，先删除旧的key，并更新ID映射
+    if (oldKey !== newKey && oldKey in newHeaders) {
       delete newHeaders[oldKey];
+
+      // 将旧key的ID映射转移到新key
+      const id = headerIdMapRef.current.get(oldKey);
+      if (id) {
+        headerIdMapRef.current.delete(oldKey);
+        if (newKey.trim()) {
+          headerIdMapRef.current.set(newKey.trim(), id);
+        }
+      }
     }
 
-    if (newKey && value.trim()) {
-      newHeaders[newKey] = value.trim();
-    } else if (!value.trim() && newKey) {
-      delete newHeaders[newKey];
+    // 如果新key不为空，设置新值（允许value为空，方便用户先编辑key再填value）
+    if (newKey.trim()) {
+      newHeaders[newKey.trim()] = value;
     }
 
     onHeadersChange(newHeaders);
@@ -143,29 +179,28 @@ export function OpenCodeFormFields({
           })}
         </label>
         <div className="space-y-2">
-          {Object.entries(headers).map(([key, value]) => (
-            <div key={key} className="flex gap-2 items-start">
+          {headerEntries.map((entry) => (
+            <div key={entry.id} className="flex gap-2 items-start">
               <input
                 type="text"
-                value={key}
+                value={entry.key}
                 onChange={(e) => {
                   const newKey = e.target.value;
-                  const newValue = headers[key];
-                  handleHeaderChange(key, newKey, newValue);
+                  handleHeaderChange(entry.key, newKey, entry.value);
                 }}
                 className="flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 placeholder="X-Custom-Header"
               />
               <input
                 type="text"
-                value={value}
-                onChange={(e) => handleHeaderChange(key, key, e.target.value)}
+                value={entry.value}
+                onChange={(e) => handleHeaderChange(entry.key, entry.key, e.target.value)}
                 className="flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 placeholder="value"
               />
               <button
                 type="button"
-                onClick={() => removeHeader(key)}
+                onClick={() => removeHeader(entry.key)}
                 className="h-9 w-9 flex items-center justify-center rounded-md border border-input hover:bg-accent hover:text-accent-foreground"
               >
                 ×

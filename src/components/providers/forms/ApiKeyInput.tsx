@@ -48,7 +48,8 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({
           placeholder={placeholder ?? t("apiKeyInput.placeholder")}
           disabled={disabled}
           required={required}
-          autoComplete="off"
+          autoComplete="new-password"
+          data-form-type="other"
           className={inputClass}
         />
         {!disabled && value && (

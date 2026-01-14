@@ -110,6 +110,7 @@ export function OpenCodeModelConfig({
                           }}
                           className="h-8 text-sm"
                           placeholder="openai/gpt-4o"
+                          autoComplete="off"
                         />
                       </div>
                       <div>
@@ -132,6 +133,7 @@ export function OpenCodeModelConfig({
                           }
                           className="h-8 text-sm"
                           placeholder="GPT-4o"
+                          autoComplete="off"
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-2">
@@ -161,6 +163,7 @@ export function OpenCodeModelConfig({
                             }
                             className="h-8 text-sm"
                             placeholder="128000"
+                            autoComplete="off"
                           />
                         </div>
                         <div>
@@ -189,6 +192,7 @@ export function OpenCodeModelConfig({
                             }
                             className="h-8 text-sm"
                             placeholder="4096"
+                            autoComplete="off"
                           />
                         </div>
                       </div>
@@ -225,6 +229,7 @@ export function OpenCodeModelConfig({
                   onChange={(e) => setNewModelId(e.target.value)}
                   className="h-8 text-sm"
                   placeholder="openai/gpt-4o"
+                  autoComplete="off"
                 />
               </div>
               <div>
@@ -237,6 +242,7 @@ export function OpenCodeModelConfig({
                   onChange={(e) => setNewModelName(e.target.value)}
                   className="h-8 text-sm"
                   placeholder="GPT-4o"
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -254,6 +260,7 @@ export function OpenCodeModelConfig({
                   onChange={(e) => setNewModelContext(e.target.value)}
                   className="h-8 text-sm"
                   placeholder="128000"
+                  autoComplete="off"
                 />
               </div>
               <div>
@@ -269,6 +276,7 @@ export function OpenCodeModelConfig({
                   onChange={(e) => setNewModelOutput(e.target.value)}
                   className="h-8 text-sm"
                   placeholder="4096"
+                  autoComplete="off"
                 />
               </div>
             </div>

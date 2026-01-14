@@ -121,7 +121,11 @@ export function BasicFormFields({ form }: BasicFormFieldsProps) {
             <FormItem>
               <FormLabel>{t("provider.name")}</FormLabel>
               <FormControl>
-                <Input {...field} placeholder={t("provider.namePlaceholder")} />
+                <Input
+                  {...field}
+                  placeholder={t("provider.namePlaceholder")}
+                  autoComplete="off"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -138,6 +142,7 @@ export function BasicFormFields({ form }: BasicFormFieldsProps) {
                 <Input
                   {...field}
                   placeholder={t("provider.notesPlaceholder")}
+                  autoComplete="off"
                 />
               </FormControl>
               <FormMessage />
@@ -156,6 +161,7 @@ export function BasicFormFields({ form }: BasicFormFieldsProps) {
               <Input
                 {...field}
                 placeholder={t("providerForm.websiteUrlPlaceholder")}
+                autoComplete="off"
               />
             </FormControl>
             <FormMessage />

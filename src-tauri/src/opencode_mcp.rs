@@ -37,27 +37,38 @@ pub fn sync_single_server_to_opencode(
         .get("type")
         .and_then(|v| v.as_str())
         .unwrap_or("local");
-    
-    // OpenCode 使用 "remote" 而不是 "http"
+
+    // OpenCode 只支持 "local" 和 "remote" 两种类型
+    // 将其他类型映射到 OpenCode 的类型系统
     let opencode_type = match m_type {
         "http" => "remote",
+        "stdio" => "local",  // stdio 类型映射到 local
         _ => m_type,
     };
-    
+
     let mut opencode_entry = json!({ "type": opencode_type, "enabled": true });
 
     if let Some(command) = server.get("command") {
-        // 处理 command 字段：支持字符串和数组格式
+        // 处理 command 字段：OpenCode 要求 command 必须是数组格式
         if let Some(cmd_str) = command.as_str() {
-            // 如果是字符串，直接使用（兼容简单命令）
-            opencode_entry["command"] = json!(cmd_str);
+            // 如果是字符串，转换为数组格式
+            // 对于简单命令（如 "npx"），需要结合 args 字段
+            if let Some(args) = server.get("args").and_then(|v| v.as_array()) {
+                // 如果有 args，合并成完整的 command 数组
+                let mut cmd_array = vec![json!(cmd_str)];
+                cmd_array.extend(args.iter().cloned());
+                opencode_entry["command"] = json!(cmd_array);
+            } else {
+                // 没有 args，将字符串转为单元素数组
+                opencode_entry["command"] = json!([cmd_str]);
+            }
         } else if let Some(cmd_array) = command.as_array() {
-            // 如果是数组，直接使用
+            // 如果已经是数组，直接使用
             opencode_entry["command"] = json!(cmd_array);
         }
     }
-    
-    // 对于 local 类型，添加 environment 字段
+
+    // 对于 local 类型，添加 environment 字段（OpenCode 要求）
     if opencode_type == "local" {
         opencode_entry["environment"] = server
             .get("environment")
@@ -115,7 +126,7 @@ pub fn import_from_opencode(config: &mut crate::app_config::MultiAppConfig) -> R
 
         let server_config = match entry_obj.get("type").and_then(|v| v.as_str()) {
             Some("remote") => {
-                let mut remote = json!({ "type": "remote" });
+                let mut remote = json!({ "type": "http" });  // OpenCode 的 "remote" 映射为内部的 "http"
                 if let Some(url) = entry_obj.get("url") {
                     remote["url"] = url.clone();
                 }
@@ -125,7 +136,7 @@ pub fn import_from_opencode(config: &mut crate::app_config::MultiAppConfig) -> R
                 remote
             }
             Some("local") | _ => {
-                let mut local = json!({ "type": "local" });
+                let mut local = json!({ "type": "stdio" });  // OpenCode 的 "local" 映射为内部的 "stdio"
                 if let Some(command) = entry_obj.get("command") {
                     local["command"] = command.clone();
                 }

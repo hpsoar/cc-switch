@@ -63,6 +63,10 @@ export function useToggleMcpApp() {
     }) => mcpApi.toggleApp(serverId, app, enabled),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mcp", "all"] });
+      // 同时失效 OpenCode 状态查询，因为分类数量依赖它
+      queryClient.invalidateQueries({
+        queryKey: ["mcp", "status", "opencode"],
+      });
     },
   });
 }

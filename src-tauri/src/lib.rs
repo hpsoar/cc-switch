@@ -282,7 +282,7 @@ pub fn run() {
 
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
+                        .level(log::LevelFilter::Debug)
                         .targets([
                             // 输出到控制台
                             Target::new(TargetKind::Stdout),
@@ -301,6 +301,8 @@ pub fn run() {
                 // 清理旧日志文件，只保留最近 2 个
                 panic_hook::cleanup_old_logs();
             }
+
+
 
             // 初始化数据库
             let app_config_dir = crate::config::get_app_config_dir();

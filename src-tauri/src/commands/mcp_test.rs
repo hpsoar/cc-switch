@@ -165,7 +165,11 @@ async fn test_stdio_server(
 
         // 读取 initialize 响应（带超时）
         let mut response_line = String::new();
-        timeout(Duration::from_secs(10), reader.read_line(&mut response_line)).await??;
+        timeout(
+            Duration::from_secs(10),
+            reader.read_line(&mut response_line),
+        )
+        .await??;
 
         debug!("Received response: {}", response_line);
 
@@ -194,7 +198,11 @@ async fn test_stdio_server(
         stdin.flush().await?;
 
         let mut tools_response_line = String::new();
-        timeout(Duration::from_secs(10), reader.read_line(&mut tools_response_line)).await??;
+        timeout(
+            Duration::from_secs(10),
+            reader.read_line(&mut tools_response_line),
+        )
+        .await??;
         let tools_response: Value = serde_json::from_str(&tools_response_line)?;
 
         // 4. 获取 resources 列表
@@ -210,7 +218,11 @@ async fn test_stdio_server(
         stdin.flush().await?;
 
         let mut resources_response_line = String::new();
-        timeout(Duration::from_secs(10), reader.read_line(&mut resources_response_line)).await??;
+        timeout(
+            Duration::from_secs(10),
+            reader.read_line(&mut resources_response_line),
+        )
+        .await??;
         let resources_response: Value = serde_json::from_str(&resources_response_line)?;
 
         // 5. 获取 prompts 列表
@@ -226,7 +238,11 @@ async fn test_stdio_server(
         stdin.flush().await?;
 
         let mut prompts_response_line = String::new();
-        timeout(Duration::from_secs(10), reader.read_line(&mut prompts_response_line)).await??;
+        timeout(
+            Duration::from_secs(10),
+            reader.read_line(&mut prompts_response_line),
+        )
+        .await??;
         let prompts_response: Value = serde_json::from_str(&prompts_response_line)?;
 
         Ok::<(Value, Value, Value, Value), Box<dyn std::error::Error + Send + Sync>>((

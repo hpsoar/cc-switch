@@ -37,19 +37,40 @@ pub fn sync_single_server_to_opencode(
         .get("type")
         .and_then(|v| v.as_str())
         .unwrap_or("local");
-    let mut opencode_entry = json!({ "type": m_type, "enabled": true });
+    
+    // OpenCode 使用 "remote" 而不是 "http"
+    let opencode_type = match m_type {
+        "http" => "remote",
+        _ => m_type,
+    };
+    
+    let mut opencode_entry = json!({ "type": opencode_type, "enabled": true });
 
     if let Some(command) = server.get("command") {
-        opencode_entry["command"] = command.clone();
+        // 处理 command 字段：支持字符串和数组格式
+        if let Some(cmd_str) = command.as_str() {
+            // 如果是字符串，直接使用（兼容简单命令）
+            opencode_entry["command"] = json!(cmd_str);
+        } else if let Some(cmd_array) = command.as_array() {
+            // 如果是数组，直接使用
+            opencode_entry["command"] = json!(cmd_array);
+        }
     }
+    
+    // 对于 local 类型，添加 environment 字段
+    if opencode_type == "local" {
+        opencode_entry["environment"] = server
+            .get("environment")
+            .and_then(|v| v.as_object())
+            .map(|o| json!(o))
+            .unwrap_or(json!({}));
+    }
+    
     if let Some(url) = server.get("url") {
         opencode_entry["url"] = url.clone();
     }
     if let Some(headers) = server.get("headers") {
         opencode_entry["headers"] = headers.clone();
-    }
-    if let Some(environment) = server.get("environment") {
-        opencode_entry["environment"] = environment.clone();
     }
 
     mcp_obj.insert(server_id.to_string(), opencode_entry);

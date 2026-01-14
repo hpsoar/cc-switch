@@ -40,16 +40,14 @@ export function OpenCodeModelConfig({
       name: newModelName.trim(),
     };
 
-    if (newModelContext.trim()) {
-      config.limit = {
-        context: parseInt(newModelContext, 10),
-      };
-    }
+    // Add limit if at least one value is provided, use defaults for missing values
+    const hasContext = newModelContext.trim();
+    const hasOutput = newModelOutput.trim();
 
-    if (newModelOutput.trim()) {
+    if (hasContext || hasOutput) {
       config.limit = {
-        ...config.limit,
-        output: parseInt(newModelOutput, 10),
+        context: hasContext ? parseInt(newModelContext, 10) : 128000,
+        output: hasOutput ? parseInt(newModelOutput, 10) : 4096,
       };
     }
 
@@ -64,6 +62,7 @@ export function OpenCodeModelConfig({
   return (
     <div className="space-y-4">
       <Button
+        type="button"
         variant="ghost"
         className="w-full justify-between px-0 h-auto py-2"
         onClick={() => setIsExpanded(!isExpanded)}
@@ -150,19 +149,29 @@ export function OpenCodeModelConfig({
                             id={`model-context-${modelId}`}
                             type="number"
                             value={config.limit?.context ?? ""}
-                            onChange={(e) =>
-                              onUpdateModel(modelId, {
-                                ...config,
-                                limit: {
-                                  ...config.limit,
-                                  context: e.target.value
-                                    ? parseInt(e.target.value, 10)
-                                    : undefined,
-                                },
-                              })
-                            }
+                            onChange={(e) => {
+                              const newContext = e.target.value
+                                ? parseInt(e.target.value, 10)
+                                : undefined;
+                              const existingOutput = config.limit?.output;
+
+                              const newConfig: ModelConfig = { ...config };
+
+                              // If at least one value is provided, keep limit with defaults
+                              if (newContext !== undefined || existingOutput !== undefined) {
+                                newConfig.limit = {
+                                  context: newContext ?? 128000,
+                                  output: existingOutput ?? 4096,
+                                };
+                              } else {
+                                // Both are undefined, remove limit
+                                delete newConfig.limit;
+                              }
+
+                              onUpdateModel(modelId, newConfig);
+                            }}
                             className="h-8 text-sm"
-                            placeholder="128000"
+                            placeholder="128000 (默认)"
                             autoComplete="off"
                           />
                         </div>
@@ -179,25 +188,36 @@ export function OpenCodeModelConfig({
                             id={`model-output-${modelId}`}
                             type="number"
                             value={config.limit?.output ?? ""}
-                            onChange={(e) =>
-                              onUpdateModel(modelId, {
-                                ...config,
-                                limit: {
-                                  ...config.limit,
-                                  output: e.target.value
-                                    ? parseInt(e.target.value, 10)
-                                    : undefined,
-                                },
-                              })
-                            }
+                            onChange={(e) => {
+                              const newOutput = e.target.value
+                                ? parseInt(e.target.value, 10)
+                                : undefined;
+                              const existingContext = config.limit?.context;
+
+                              const newConfig: ModelConfig = { ...config };
+
+                              // If at least one value is provided, keep limit with defaults
+                              if (existingContext !== undefined || newOutput !== undefined) {
+                                newConfig.limit = {
+                                  context: existingContext ?? 128000,
+                                  output: newOutput ?? 4096,
+                                };
+                              } else {
+                                // Both are undefined, remove limit
+                                delete newConfig.limit;
+                              }
+
+                              onUpdateModel(modelId, newConfig);
+                            }}
                             className="h-8 text-sm"
-                            placeholder="4096"
+                            placeholder="4096 (默认)"
                             autoComplete="off"
                           />
                         </div>
                       </div>
                     </div>
                     <Button
+                      type="button"
                       variant="ghost"
                       size="icon"
                       onClick={() => onRemoveModel(modelId)}
@@ -281,6 +301,7 @@ export function OpenCodeModelConfig({
               </div>
             </div>
             <Button
+              type="button"
               onClick={handleAddModel}
               disabled={!newModelId.trim() || !newModelName.trim()}
               className="w-full"

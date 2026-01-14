@@ -1,15 +1,25 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Save, Plus, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Save,
+  Plus,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  TestTube2,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import JsonEditor from "@/components/JsonEditor";
 import type { AppId } from "@/lib/api/types";
-import { McpServer, McpServerSpec } from "@/types";
+import { McpServer, McpServerSpec, McpTestResult } from "@/types";
+import { McpTestModal } from "./McpTestModal";
 import { mcpPresets, getMcpPresetWithDescription } from "@/config/mcpPresets";
 import McpWizardModal from "./McpWizardModal";
+import { mcpApi } from "@/lib/api/mcp";
 import {
   extractErrorMessage,
   translateMcpBackendError,
@@ -109,6 +119,9 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
 
   const [configError, setConfigError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<McpTestResult | null>(null);
+  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [idError, setIdError] = useState("");
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -405,6 +418,59 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
     }
   };
 
+  const handleTest = async () => {
+    let serverSpec: McpServerSpec;
+
+    if (useToml) {
+      const tomlError = validateTomlConfig(formConfig);
+      if (tomlError) {
+        toast.error(t("mcp.error.tomlInvalid"), { duration: 3000 });
+        return;
+      }
+
+      if (!formConfig.trim()) {
+        toast.error(t("mcp.error.configRequired"), { duration: 3000 });
+        return;
+      }
+
+      try {
+        serverSpec = tomlToMcpServer(formConfig);
+      } catch (e: any) {
+        toast.error(t("mcp.error.tomlInvalid"), { duration: 4000 });
+        return;
+      }
+    } else {
+      if (!formConfig.trim()) {
+        toast.error(t("mcp.error.configRequired"), { duration: 3000 });
+        return;
+      }
+
+      try {
+        const result = parseSmartMcpJson(formConfig);
+        serverSpec = result.config as McpServerSpec;
+      } catch (e: any) {
+        toast.error(t("mcp.error.jsonInvalid"), { duration: 4000 });
+        return;
+      }
+    }
+
+    setTesting(true);
+    setIsTestModalOpen(true);
+
+    try {
+      const result = await mcpApi.testServer(serverSpec);
+      setTestResult(result);
+    } catch (error: any) {
+      setTestResult({
+        success: false,
+        message: "Test failed",
+        details: error?.message || String(error),
+      });
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const getFormTitle = () => {
     return isEditing ? t("mcp.editServer") : t("mcp.addServer");
   };
@@ -416,19 +482,35 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         title={getFormTitle()}
         onClose={onClose}
         footer={
-          <Button
-            type="button"
-            onClick={handleSubmit}
-            disabled={saving || (!isEditing && !!idError)}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isEditing ? <Save size={16} /> : <Plus size={16} />}
-            {saving
-              ? t("common.saving")
-              : isEditing
-                ? t("common.save")
-                : t("common.add")}
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              type="button"
+              onClick={handleTest}
+              disabled={testing || saving || !formConfig.trim()}
+              variant="outline"
+              className="disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {testing ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <TestTube2 size={16} />
+              )}
+              {testing ? t("mcp.testing") : t("mcp.test")}
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSubmit}
+              disabled={saving || testing || (!isEditing && !!idError)}
+              className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isEditing ? <Save size={16} /> : <Plus size={16} />}
+              {saving
+                ? t("common.saving")
+                : isEditing
+                  ? t("common.save")
+                  : t("common.add")}
+            </Button>
+          </div>
         }
       >
         <div className="flex flex-col h-full gap-6">
@@ -701,6 +783,14 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         onApply={handleWizardApply}
         initialTitle={formId}
         initialServer={wizardInitialSpec}
+      />
+
+      {/* Test Modal */}
+      <McpTestModal
+        open={isTestModalOpen}
+        onOpenChange={setIsTestModalOpen}
+        testResult={testResult}
+        testing={testing}
       />
     </>
   );

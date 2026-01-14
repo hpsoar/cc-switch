@@ -527,25 +527,25 @@ impl MultiAppConfig {
         }
     }
 
-/// 获取指定客户端的 MCP 配置（不可变引用）
-pub fn mcp_for(&self, app: &AppType) -> &McpConfig {
-    match app {
-        AppType::Claude => &self.mcp.claude,
-        AppType::Codex => &self.mcp.codex,
-        AppType::Gemini => &self.mcp.gemini,
-        AppType::OpenCode => &self.mcp.opencode,
+    /// 获取指定客户端的 MCP 配置（不可变引用）
+    pub fn mcp_for(&self, app: &AppType) -> &McpConfig {
+        match app {
+            AppType::Claude => &self.mcp.claude,
+            AppType::Codex => &self.mcp.codex,
+            AppType::Gemini => &self.mcp.gemini,
+            AppType::OpenCode => &self.mcp.opencode,
+        }
     }
-}
 
-/// 获取指定客户端的 MCP 配置（可变引用）
-pub fn mcp_for_mut(&mut self, app: &AppType) -> &mut McpConfig {
-    match app {
-        AppType::Claude => &mut self.mcp.claude,
-        AppType::Codex => &mut self.mcp.codex,
-        AppType::Gemini => &mut self.mcp.gemini,
-        AppType::OpenCode => &mut self.mcp.opencode,
+    /// 获取指定客户端的 MCP 配置（可变引用）
+    pub fn mcp_for_mut(&mut self, app: &AppType) -> &mut McpConfig {
+        match app {
+            AppType::Claude => &mut self.mcp.claude,
+            AppType::Codex => &mut self.mcp.codex,
+            AppType::Gemini => &mut self.mcp.gemini,
+            AppType::OpenCode => &mut self.mcp.opencode,
+        }
     }
-}
 
     /// 创建默认配置并自动导入已存在的提示词文件
     fn default_with_auto_import() -> Result<Self, AppError> {
@@ -681,7 +681,12 @@ pub fn mcp_for_mut(&mut self, app: &AppType) -> &mut McpConfig {
         let mut conflicts = Vec::new();
 
         // 收集所有应用的 MCP
-        for app in [AppType::Claude, AppType::Codex, AppType::Gemini, AppType::OpenCode] {
+        for app in [
+            AppType::Claude,
+            AppType::Codex,
+            AppType::Gemini,
+            AppType::OpenCode,
+        ] {
             let old_servers = match app {
                 AppType::Claude => &self.mcp.claude.servers,
                 AppType::Codex => &self.mcp.codex.servers,

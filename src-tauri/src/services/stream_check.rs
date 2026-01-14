@@ -480,7 +480,10 @@ impl StreamCheckService {
             "stream": true
         });
 
-        log::debug!("OpenCode stream check - Request body: {}", serde_json::to_string_pretty(&body).unwrap_or_default());
+        log::debug!(
+            "OpenCode stream check - Request body: {}",
+            serde_json::to_string_pretty(&body).unwrap_or_default()
+        );
 
         let response = client
             .post(&url)
@@ -505,7 +508,10 @@ impl StreamCheckService {
         if let Some(chunk) = stream.next().await {
             match chunk {
                 Ok(data) => {
-                    log::debug!("OpenCode stream check - Received first chunk: {} bytes", data.len());
+                    log::debug!(
+                        "OpenCode stream check - Received first chunk: {} bytes",
+                        data.len()
+                    );
                     Ok((status, model.to_string()))
                 }
                 Err(e) => {

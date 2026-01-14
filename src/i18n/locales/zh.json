@@ -651,6 +651,8 @@
         "opencode": "OpenCode"
       }
     },
+    "searchPlaceholder": "按名称、描述或标签搜索...",
+    "searchResults": "找到 {{count}} 个服务器",
     "userLevelPath": "用户级 MCP 配置路径",
     "serverList": "服务器列表",
     "loading": "加载中...",
@@ -778,7 +780,19 @@
         "name": "@upstash/context7-mcp",
         "description": "Context7 文档搜索工具，提供最新的库文档和代码示例，配置 key 会有更高限额"
       }
-    }
+    },
+    "test": "测试",
+    "testing": "测试中...",
+    "testResults": "MCP 测试结果",
+    "testDescription": "连通性测试和功能列表",
+    "serverInformation": "服务器信息",
+    "serverName": "服务器名称",
+    "serverVersion": "服务器版本",
+    "protocolVersion": "协议版本",
+    "tools": "工具",
+    "resources": "资源",
+    "prompts": "提示词",
+    "noTestResults": "暂无测试结果"
   },
   "prompts": {
     "manage": "提示词",

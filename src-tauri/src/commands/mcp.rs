@@ -210,3 +210,6 @@ pub async fn import_mcp_from_apps(state: State<'_, AppState>) -> Result<usize, S
     total += McpService::import_from_opencode(&state).unwrap_or(0);
     Ok(total)
 }
+
+// MCP 测试功能已移至 mcp_test.rs 模块
+// 通过 mcp_test::* 重导出

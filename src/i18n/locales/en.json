@@ -651,6 +651,8 @@
         "opencode": "OpenCode"
       }
     },
+    "searchPlaceholder": "Search by name, description, or tags...",
+    "searchResults": "Found {{count}} server(s)",
     "userLevelPath": "User-level MCP path",
     "serverList": "Servers",
     "loading": "Loading...",
@@ -778,7 +780,19 @@
         "name": "@upstash/context7-mcp",
         "description": "Context7 documentation search tool providing latest library docs and code examples, with higher limits when configured with a key"
       }
-    }
+    },
+    "test": "Test",
+    "testing": "Testing...",
+    "testResults": "MCP Test Results",
+    "testDescription": "Connection test and capability list",
+    "serverInformation": "Server Information",
+    "serverName": "Server Name",
+    "serverVersion": "Server Version",
+    "protocolVersion": "Protocol Version",
+    "tools": "Tools",
+    "resources": "Resources",
+    "prompts": "Prompts",
+    "noTestResults": "No test results available"
   },
   "prompts": {
     "manage": "Prompts",

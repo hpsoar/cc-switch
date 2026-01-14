@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use crate::app_config::McpApps;
 use crate::error::AppError;
-use crate::opencode_config::{get_opencode_config_path, read_opencode_config, write_opencode_config};
+use crate::opencode_config::{
+    get_opencode_config_path, read_opencode_config, write_opencode_config,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -42,7 +44,7 @@ pub fn sync_single_server_to_opencode(
     // 将其他类型映射到 OpenCode 的类型系统
     let opencode_type = match m_type {
         "http" => "remote",
-        "stdio" => "local",  // stdio 类型映射到 local
+        "stdio" => "local", // stdio 类型映射到 local
         _ => m_type,
     };
 
@@ -76,7 +78,7 @@ pub fn sync_single_server_to_opencode(
             .map(|o| json!(o))
             .unwrap_or(json!({}));
     }
-    
+
     if let Some(url) = server.get("url") {
         opencode_entry["url"] = url.clone();
     }
@@ -109,7 +111,9 @@ pub fn remove_server_from_opencode(server_id: &str) -> Result<(), AppError> {
 ///
 /// 此函数与其他导入函数（import_from_claude, import_from_codex）保持一致的接口
 /// 将 OpenCode 配置文件中的 MCP 服务器读取并填充到 config.mcp.servers 中
-pub fn import_from_opencode(config: &mut crate::app_config::MultiAppConfig) -> Result<usize, AppError> {
+pub fn import_from_opencode(
+    config: &mut crate::app_config::MultiAppConfig,
+) -> Result<usize, AppError> {
     let opencode_config = read_opencode_config()?;
     let mcp = opencode_config
         .as_object()
@@ -126,7 +130,7 @@ pub fn import_from_opencode(config: &mut crate::app_config::MultiAppConfig) -> R
 
         let server_config = match entry_obj.get("type").and_then(|v| v.as_str()) {
             Some("remote") => {
-                let mut remote = json!({ "type": "http" });  // OpenCode 的 "remote" 映射为内部的 "http"
+                let mut remote = json!({ "type": "http" }); // OpenCode 的 "remote" 映射为内部的 "http"
                 if let Some(url) = entry_obj.get("url") {
                     remote["url"] = url.clone();
                 }
@@ -136,7 +140,7 @@ pub fn import_from_opencode(config: &mut crate::app_config::MultiAppConfig) -> R
                 remote
             }
             Some("local") | _ => {
-                let mut local = json!({ "type": "stdio" });  // OpenCode 的 "local" 映射为内部的 "stdio"
+                let mut local = json!({ "type": "stdio" }); // OpenCode 的 "local" 映射为内部的 "stdio"
                 if let Some(command) = entry_obj.get("command") {
                     local["command"] = command.clone();
                 }

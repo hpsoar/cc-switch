@@ -16,8 +16,8 @@ mod auth;
 mod claude;
 mod codex;
 mod gemini;
-mod opencode;
 pub mod models;
+mod opencode;
 pub mod streaming;
 pub mod transform;
 
@@ -29,9 +29,9 @@ use serde::{Deserialize, Serialize};
 pub use adapter::ProviderAdapter;
 pub use auth::{AuthInfo, AuthStrategy};
 pub use claude::ClaudeAdapter;
-pub use opencode::OpenCodeAdapter;
 pub use codex::CodexAdapter;
 pub use gemini::GeminiAdapter;
+pub use opencode::OpenCodeAdapter;
 
 /// 供应商类型枚举
 ///

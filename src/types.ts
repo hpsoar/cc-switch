@@ -194,6 +194,31 @@ export interface McpConfigResponse {
   servers: Record<string, McpServer>;
 }
 
+// MCP 测试结果
+export interface McpTestResult {
+  success: boolean;
+  message: string;
+  details?: string;
+  server_info?: {
+    name: string;
+    version: string;
+    protocol_version: string;
+  };
+  tools?: Array<{
+    name: string;
+    description?: string;
+  }>;
+  resources?: Array<{
+    uri: string;
+    name?: string;
+    description?: string;
+  }>;
+  prompts?: Array<{
+    name: string;
+    description?: string;
+  }>;
+}
+
 // ============================================================================
 // 统一供应商（Universal Provider）- 跨应用共享配置
 // ============================================================================

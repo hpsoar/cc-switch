@@ -190,7 +190,10 @@ pub(crate) fn sync_all_opencode_providers(state: &AppState) -> Result<(), AppErr
 
     // Log conflicts as warnings
     if !conflicts.is_empty() {
-        log::warn!("OpenCode provider key conflicts detected:\n{}", conflicts.join("\n"));
+        log::warn!(
+            "OpenCode provider key conflicts detected:\n{}",
+            conflicts.join("\n")
+        );
     }
 
     Ok(())
@@ -205,11 +208,7 @@ pub fn sync_current_to_live(state: &AppState) -> Result<(), AppError> {
     // OpenCode uses multi-provider architecture - sync all providers
     sync_all_opencode_providers(state)?;
 
-    for app_type in [
-        AppType::Claude,
-        AppType::Codex,
-        AppType::Gemini,
-    ] {
+    for app_type in [AppType::Claude, AppType::Codex, AppType::Gemini] {
         let current_id =
             match crate::settings::get_effective_current_provider(&state.db, &app_type)? {
                 Some(id) => id,

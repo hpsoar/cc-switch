@@ -5,6 +5,7 @@ import type {
   McpServerSpec,
   McpServersMap,
   McpStatus,
+  McpTestResult,
 } from "@/types";
 import type { AppId } from "./types";
 
@@ -122,6 +123,13 @@ export const mcpApi = {
     enabled: boolean,
   ): Promise<void> {
     return await invoke("toggle_mcp_app", { serverId, app, enabled });
+  },
+
+  /**
+   * 测试 MCP 服务器连接
+   */
+  async testServer(spec: McpServerSpec): Promise<McpTestResult> {
+    return await invoke("test_mcp_server", { spec });
   },
 
   /**

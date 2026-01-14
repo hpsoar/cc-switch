@@ -64,34 +64,34 @@ impl Database {
         Ok(servers)
     }
 
-/// 保存 MCP 服务器
-pub fn save_mcp_server(&self, server: &McpServer) -> Result<(), AppError> {
-    let conn = lock_conn!(self.conn);
-    conn.execute(
-        "INSERT OR REPLACE INTO mcp_servers (
+    /// 保存 MCP 服务器
+    pub fn save_mcp_server(&self, server: &McpServer) -> Result<(), AppError> {
+        let conn = lock_conn!(self.conn);
+        conn.execute(
+            "INSERT OR REPLACE INTO mcp_servers (
             id, name, server_config, description, homepage, docs, tags,
             enabled_claude, enabled_codex, enabled_gemini, enabled_opencode
         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-        params![
-            server.id,
-            server.name,
-            serde_json::to_string(&server.server).map_err(|e| AppError::Database(format!(
-                "Failed to serialize server config: {e}"
-            )))?,
-            server.description,
-            server.homepage,
-            server.docs,
-            serde_json::to_string(&server.tags)
-                .map_err(|e| AppError::Database(format!("Failed to serialize tags: {e}")))?,
-            server.apps.claude,
-            server.apps.codex,
-            server.apps.gemini,
-            server.apps.opencode,
-        ],
-    )
-    .map_err(|e| AppError::Database(e.to_string()))?;
-    Ok(())
-}
+            params![
+                server.id,
+                server.name,
+                serde_json::to_string(&server.server).map_err(|e| AppError::Database(format!(
+                    "Failed to serialize server config: {e}"
+                )))?,
+                server.description,
+                server.homepage,
+                server.docs,
+                serde_json::to_string(&server.tags)
+                    .map_err(|e| AppError::Database(format!("Failed to serialize tags: {e}")))?,
+                server.apps.claude,
+                server.apps.codex,
+                server.apps.gemini,
+                server.apps.opencode,
+            ],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+        Ok(())
+    }
 
     /// 删除 MCP 服务器
     pub fn delete_mcp_server(&self, id: &str) -> Result<(), AppError> {

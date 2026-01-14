@@ -1,7 +1,5 @@
+use cc_switch_lib::{read_opencode_config, sync_single_server_to_opencode, AppError};
 use serde_json::json;
-use cc_switch_lib::{
-    sync_single_server_to_opencode, read_opencode_config, AppError,
-};
 
 #[path = "support.rs"]
 mod support;
@@ -24,9 +22,13 @@ fn test_sync_stdio_server_to_opencode() {
         .expect("sync should succeed");
 
     let config = read_opencode_config().expect("read should succeed");
-    let mcp = config.get("mcp").and_then(|m| m.as_object())
+    let mcp = config
+        .get("mcp")
+        .and_then(|m| m.as_object())
         .expect("mcp should exist");
-    let chrome_devtools = mcp.get("chrome-devtools").and_then(|c| c.as_object())
+    let chrome_devtools = mcp
+        .get("chrome-devtools")
+        .and_then(|c| c.as_object())
         .expect("chrome-devtools should exist");
 
     // 验证类型被正确转换为 "local"
@@ -39,7 +41,11 @@ fn test_sync_stdio_server_to_opencode() {
     // 验证 command 被正确合并为数组
     assert_eq!(
         chrome_devtools.get("command"),
-        Some(&json!(["npx", "-y", "@modelcontextprotocol/server-chrome-devtools"])),
+        Some(&json!([
+            "npx",
+            "-y",
+            "@modelcontextprotocol/server-chrome-devtools"
+        ])),
         "command should be merged with args into array"
     );
 
@@ -77,9 +83,13 @@ fn test_sync_http_server_to_opencode() {
         .expect("sync should succeed");
 
     let config = read_opencode_config().expect("read should succeed");
-    let mcp = config.get("mcp").and_then(|m| m.as_object())
+    let mcp = config
+        .get("mcp")
+        .and_then(|m| m.as_object())
         .expect("mcp should exist");
-    let remote_server = mcp.get("remote-server").and_then(|r| r.as_object())
+    let remote_server = mcp
+        .get("remote-server")
+        .and_then(|r| r.as_object())
         .expect("remote-server should exist");
 
     // 验证类型被正确转换为 "remote"
@@ -130,9 +140,13 @@ fn test_sync_command_array_to_opencode() {
         .expect("sync should succeed");
 
     let config = read_opencode_config().expect("read should succeed");
-    let mcp = config.get("mcp").and_then(|m| m.as_object())
+    let mcp = config
+        .get("mcp")
+        .and_then(|m| m.as_object())
         .expect("mcp should exist");
-    let node_server = mcp.get("node-server").and_then(|n| n.as_object())
+    let node_server = mcp
+        .get("node-server")
+        .and_then(|n| n.as_object())
         .expect("node-server should exist");
 
     // 验证数组格式的 command 被保留
@@ -166,9 +180,13 @@ fn test_sync_simple_command_string_to_opencode() {
         .expect("sync should succeed");
 
     let config = read_opencode_config().expect("read should succeed");
-    let mcp = config.get("mcp").and_then(|m| m.as_object())
+    let mcp = config
+        .get("mcp")
+        .and_then(|m| m.as_object())
         .expect("mcp should exist");
-    let simple_server = mcp.get("simple-server").and_then(|s| s.as_object())
+    let simple_server = mcp
+        .get("simple-server")
+        .and_then(|s| s.as_object())
         .expect("simple-server should exist");
 
     // 验证字符串 command 被转换为单元素数组

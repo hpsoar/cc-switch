@@ -651,6 +651,8 @@
         "opencode": "OpenCode"
       }
     },
+    "searchPlaceholder": "名前、説明、タグで検索...",
+    "searchResults": "{{count}} 個のサーバーが見つかりました",
     "userLevelPath": "ユーザーレベルの MCP パス",
     "serverList": "サーバー一覧",
     "loading": "読み込み中...",

@@ -159,7 +159,6 @@ fn parse_provider_deeplink(
         usage_user_id: None,
         usage_auto_interval: None,
     })
-
 }
 
 /// Parse prompt deep link parameters

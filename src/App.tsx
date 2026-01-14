@@ -484,7 +484,7 @@ function App() {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.15 }}
-                    className="space-y-4"
+                    className="space-y-4 pt-[30px]"
                   >
                     <ProviderList
                       providers={providers}

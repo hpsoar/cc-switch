@@ -2,8 +2,8 @@ use serde_json::json;
 use std::path::PathBuf;
 
 use cc_switch_lib::{
-    get_opencode_config_path, get_opencode_dir, read_opencode_config,
-    write_opencode_config, AppError,
+    get_opencode_config_path, get_opencode_dir, read_opencode_config, write_opencode_config,
+    AppError,
 };
 
 #[path = "support.rs"]
@@ -19,8 +19,7 @@ fn test_get_opencode_dir_default() {
     let expected = ensure_test_home().join(".config").join("opencode");
 
     assert_eq!(
-        dir,
-        expected,
+        dir, expected,
         "default opencode dir should be ~/.config/opencode"
     );
 }
@@ -37,8 +36,7 @@ fn test_get_opencode_config_path() {
         .join("opencode.json");
 
     assert_eq!(
-        path,
-        expected,
+        path, expected,
         "config path should be ~/.config/opencode/opencode.json"
     );
 }
@@ -48,8 +46,8 @@ fn test_read_opencode_config_returns_default_when_not_exists() {
     let _guard = test_mutex().lock().expect("acquire test mutex");
     reset_test_fs();
 
-    let config = read_opencode_config()
-        .expect("read should return default config when file doesn't exist");
+    let config =
+        read_opencode_config().expect("read should return default config when file doesn't exist");
 
     assert_eq!(
         config.get("$schema"),
@@ -99,10 +97,7 @@ fn test_write_opencode_config_creates_file() {
     write_opencode_config(&test_config).expect("write should succeed");
 
     let path = get_opencode_config_path();
-    assert!(
-        path.exists(),
-        "config file should be created after write"
-    );
+    assert!(path.exists(), "config file should be created after write");
 
     let read_config = read_opencode_config().expect("read should succeed");
     assert_eq!(
@@ -223,19 +218,13 @@ fn test_default_opencode_config_structure() {
     assert!(config.get("plugin").is_some(), "plugin field required");
 
     // Ensure types are correct
-    assert!(
-        config["$schema"].is_string(),
-        "schema should be a string"
-    );
+    assert!(config["$schema"].is_string(), "schema should be a string");
     assert!(
         config["provider"].is_object(),
         "provider should be an object"
     );
     assert!(config["mcp"].is_object(), "mcp should be an object");
-    assert!(
-        config["plugin"].is_array(),
-        "plugin should be an array"
-    );
+    assert!(config["plugin"].is_array(), "plugin should be an array");
 }
 
 #[test]
@@ -258,10 +247,7 @@ fn test_create_directory_structure() {
         opencode_dir.exists(),
         "opencode directory should be created"
     );
-    assert!(
-        opencode_dir.is_dir(),
-        "opencode should be a directory"
-    );
+    assert!(opencode_dir.is_dir(), "opencode should be a directory");
 
     let config_file = opencode_dir.join("opencode.json");
     assert!(

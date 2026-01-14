@@ -368,7 +368,9 @@ impl ProxyService {
             AppType::Claude => self.read_claude_live()?,
             AppType::Codex => self.read_codex_live()?,
             AppType::Gemini => self.read_gemini_live()?,
-            AppType::OpenCode => crate::opencode_config::read_opencode_config().map_err(|e| e.to_string())?,
+            AppType::OpenCode => {
+                crate::opencode_config::read_opencode_config().map_err(|e| e.to_string())?
+            }
         };
 
         self.sync_live_config_to_provider(app_type, &live_config)
@@ -524,7 +526,7 @@ impl ProxyService {
                             } else {
                                 log::info!("已同步 Codex Token 到数据库 (provider: {provider_id})");
                             }
-                                }
+                        }
                     }
                 }
             }
@@ -534,8 +536,7 @@ impl ProxyService {
                         .map_err(|e| format!("获取 OpenCode 当前供应商失败: {e}"))?;
 
                 if let Some(provider_id) = provider_id {
-                    if let Ok(Some(provider)) =
-                        self.db.get_provider_by_id(&provider_id, "opencode")
+                    if let Ok(Some(provider)) = self.db.get_provider_by_id(&provider_id, "opencode")
                     {
                         // OpenCode doesn't support token sync like other apps
                         // For now, we just log and skip
@@ -775,7 +776,10 @@ impl ProxyService {
             AppType::Claude => ("claude", self.read_claude_live()?),
             AppType::Codex => ("codex", self.read_codex_live()?),
             AppType::Gemini => ("gemini", self.read_gemini_live()?),
-            AppType::OpenCode => ("opencode", crate::opencode_config::read_opencode_config().map_err(|e| e.to_string())?),
+            AppType::OpenCode => (
+                "opencode",
+                crate::opencode_config::read_opencode_config().map_err(|e| e.to_string())?,
+            ),
         };
 
         let json_str = serde_json::to_string(&config)
@@ -1120,7 +1124,12 @@ impl ProxyService {
     async fn restore_live_configs(&self) -> Result<(), String> {
         let mut errors = Vec::new();
 
-        for app_type in [AppType::Claude, AppType::Codex, AppType::Gemini, AppType::OpenCode] {
+        for app_type in [
+            AppType::Claude,
+            AppType::Codex,
+            AppType::Gemini,
+            AppType::OpenCode,
+        ] {
             if let Err(e) = self
                 .restore_live_config_for_app_with_fallback(&app_type)
                 .await

@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Server } from "lucide-react";
+import { Server, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import {
   useAllMcpServers,
   useOpenCodeMcpStatus,
@@ -40,6 +41,7 @@ const UnifiedMcpPanel = React.forwardRef<
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filterApp, setFilterApp] = useState<AppId | "all">("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -60,11 +62,35 @@ const UnifiedMcpPanel = React.forwardRef<
     return Object.entries(serversMap);
   }, [serversMap]);
 
-  // Filter servers by selected app
+  // Filter servers by selected app and search query
   const filteredServerEntries = useMemo((): Array<[string, McpServer]> => {
-    if (filterApp === "all") return serverEntries;
-    return serverEntries.filter(([_, server]) => server.apps[filterApp]);
-  }, [serverEntries, filterApp]);
+    let entries = serverEntries;
+
+    // First filter by app
+    if (filterApp !== "all") {
+      entries = entries.filter(([_, server]) => server.apps[filterApp]);
+    }
+
+    // Then filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      entries = entries.filter(([_, server]) => {
+        const name = server.name?.toLowerCase() || "";
+        const description = server.description?.toLowerCase() || "";
+        const tags = server.tags?.map((t) => t.toLowerCase()).join(" ") || "";
+        const id = server.id.toLowerCase();
+
+        return (
+          name.includes(query) ||
+          description.includes(query) ||
+          tags.includes(query) ||
+          id.includes(query)
+        );
+      });
+    }
+
+    return entries;
+  }, [serverEntries, filterApp, searchQuery]);
 
   // Count enabled servers per app
   // For OpenCode, use the count from the config file instead of the database
@@ -159,42 +185,78 @@ const UnifiedMcpPanel = React.forwardRef<
     <div className="mx-auto max-w-[56rem] px-6 flex flex-col h-[calc(100vh-8rem)] overflow-hidden">
       {/* Filter Section */}
       <div className="flex-shrink-0 py-4 glass rounded-xl border border-white/10 mb-4 px-6">
-        <div className="flex gap-2">
-          <Button
-            variant={filterApp === "all" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilterApp("all")}
-          >
-            {t("common.all")} ({serverEntries.length})
-          </Button>
-          <Button
-            variant={filterApp === "claude" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilterApp("claude")}
-          >
-            {t("mcp.unifiedPanel.apps.claude")} ({enabledCounts.claude})
-          </Button>
-          <Button
-            variant={filterApp === "codex" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilterApp("codex")}
-          >
-            {t("mcp.unifiedPanel.apps.codex")} ({enabledCounts.codex})
-          </Button>
-          <Button
-            variant={filterApp === "gemini" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilterApp("gemini")}
-          >
-            {t("mcp.unifiedPanel.apps.gemini")} ({enabledCounts.gemini})
-          </Button>
-          <Button
-            variant={filterApp === "opencode" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilterApp("opencode")}
-          >
-            {t("mcp.unifiedPanel.apps.opencode")} ({enabledCounts.opencode})
-          </Button>
+        <div className="flex flex-col gap-4">
+          {/* Search Input */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder={t("mcp.searchPlaceholder", {
+                defaultValue: "Search by name, description, or tags...",
+              })}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-8"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {/* App Filter Buttons */}
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant={filterApp === "all" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilterApp("all")}
+            >
+              {t("common.all")} ({serverEntries.length})
+            </Button>
+            <Button
+              variant={filterApp === "claude" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilterApp("claude")}
+            >
+              {t("mcp.unifiedPanel.apps.claude")} ({enabledCounts.claude})
+            </Button>
+            <Button
+              variant={filterApp === "codex" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilterApp("codex")}
+            >
+              {t("mcp.unifiedPanel.apps.codex")} ({enabledCounts.codex})
+            </Button>
+            <Button
+              variant={filterApp === "gemini" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilterApp("gemini")}
+            >
+              {t("mcp.unifiedPanel.apps.gemini")} ({enabledCounts.gemini})
+            </Button>
+            <Button
+              variant={filterApp === "opencode" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilterApp("opencode")}
+            >
+              {t("mcp.unifiedPanel.apps.opencode")} ({enabledCounts.opencode})
+            </Button>
+          </div>
+
+          {/* Result Count */}
+          {searchQuery && (
+            <p className="text-sm text-muted-foreground">
+              {t("mcp.searchResults", {
+                count: filteredServerEntries.length,
+                defaultValue: "Found {{count}} server(s)",
+              })}
+            </p>
+          )}
         </div>
       </div>
 

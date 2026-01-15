@@ -24,6 +24,7 @@ import {
   useUpdateGlobalProxyConfig,
 } from "@/lib/query/proxy";
 import type { ProxyStatus } from "@/types/proxy";
+import type { AppId } from "@/lib/api";
 import { useTranslation } from "react-i18next";
 
 export function ProxyPanel() {
@@ -55,8 +56,17 @@ export function ProxyPanel() {
   const { data: claudeQueue = [] } = useFailoverQueue("claude");
   const { data: codexQueue = [] } = useFailoverQueue("codex");
   const { data: geminiQueue = [] } = useFailoverQueue("gemini");
+  const { data: openCodeQueue = [] } = useFailoverQueue("opencode");
 
-  const handleTakeoverChange = async (appType: string, enabled: boolean) => {
+  const appLabels: Record<AppId, string> = {
+    claude: "Claude",
+    codex: "Codex",
+    gemini: "Gemini",
+    opencode: "OpenCode",
+  };
+  const takeoverApps: AppId[] = ["claude", "codex", "gemini", "opencode"];
+
+  const handleTakeoverChange = async (appType: AppId, enabled: boolean) => {
     try {
       await setTakeoverForApp.mutateAsync({ appType, enabled });
       toast.success(
@@ -270,8 +280,8 @@ export function ProxyPanel() {
                     defaultValue: "应用接管",
                   })}
                 </p>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {(["claude", "codex", "gemini"] as const).map((appType) => {
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  {takeoverApps.map((appType) => {
                     const isEnabled =
                       takeoverStatus?.[
                         appType as keyof typeof takeoverStatus
@@ -282,7 +292,7 @@ export function ProxyPanel() {
                         className="flex items-center justify-between rounded-md border border-border bg-background/60 px-3 py-2"
                       >
                         <span className="text-sm font-medium capitalize">
-                          {appType}
+                          {appLabels[appType]}
                         </span>
                         <Switch
                           checked={isEnabled}
@@ -323,7 +333,8 @@ export function ProxyPanel() {
               {/* 供应商队列 - 按应用类型分组展示 */}
               {(claudeQueue.length > 0 ||
                 codexQueue.length > 0 ||
-                geminiQueue.length > 0) && (
+                geminiQueue.length > 0 ||
+                openCodeQueue.length > 0) && (
                 <div className="pt-3 border-t border-border space-y-3">
                   <div className="flex items-center gap-2">
                     <ListOrdered className="h-3.5 w-3.5 text-muted-foreground" />
@@ -364,6 +375,19 @@ export function ProxyPanel() {
                       appType="gemini"
                       appLabel="Gemini"
                       targets={geminiQueue.map((item) => ({
+                        id: item.providerId,
+                        name: item.providerName,
+                      }))}
+                      status={status}
+                    />
+                  )}
+
+                  {/* OpenCode 队列 */}
+                  {openCodeQueue.length > 0 && (
+                    <ProviderQueueGroup
+                      appType="opencode"
+                      appLabel="OpenCode"
+                      targets={openCodeQueue.map((item) => ({
                         id: item.providerId,
                         name: item.providerName,
                       }))}
@@ -550,7 +574,7 @@ function StatCard({ icon, label, value, variant = "default" }: StatCardProps) {
 }
 
 interface ProviderQueueGroupProps {
-  appType: string;
+  appType: AppId;
   appLabel: string;
   targets: Array<{
     id: string;
@@ -602,7 +626,7 @@ interface ProviderQueueItemProps {
     name: string;
   };
   priority: number;
-  appType: string;
+  appType: AppId;
   isCurrent: boolean;
 }
 

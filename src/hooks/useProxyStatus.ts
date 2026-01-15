@@ -101,7 +101,9 @@ export function useProxyStatus() {
           ? "Claude"
           : variables.appType === "codex"
             ? "Codex"
-            : "Gemini";
+            : variables.appType === "gemini"
+              ? "Gemini"
+              : "OpenCode";
 
       toast.success(
         variables.enabled
@@ -181,6 +183,7 @@ export function useProxyStatus() {
       takeoverStatus?.claude ||
       takeoverStatus?.codex ||
       takeoverStatus?.gemini ||
+      takeoverStatus?.opencode ||
       false,
 
     // 启动/停止（总开关）

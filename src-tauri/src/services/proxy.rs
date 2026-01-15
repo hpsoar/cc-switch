@@ -8,8 +8,9 @@ use crate::database::Database;
 use crate::provider::Provider;
 use crate::proxy::server::ProxyServer;
 use crate::proxy::types::*;
-use crate::services::provider::write_live_snapshot;
+use crate::services::provider::{write_live_snapshot, ProviderService};
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -210,11 +211,18 @@ impl ProxyService {
             .await
             .map(|c| c.enabled)
             .unwrap_or(false);
+        let opencode_enabled = self
+            .db
+            .get_proxy_config_for_app("opencode")
+            .await
+            .map(|c| c.enabled)
+            .unwrap_or(false);
 
         Ok(ProxyTakeoverStatus {
             claude: claude_enabled,
             codex: codex_enabled,
             gemini: gemini_enabled,
+            opencode: opencode_enabled,
         })
     }
 
@@ -368,9 +376,7 @@ impl ProxyService {
             AppType::Claude => self.read_claude_live()?,
             AppType::Codex => self.read_codex_live()?,
             AppType::Gemini => self.read_gemini_live()?,
-            AppType::OpenCode => {
-                crate::opencode_config::read_opencode_config().map_err(|e| e.to_string())?
-            }
+            AppType::OpenCode => self.read_opencode_live()?,
         };
 
         self.sync_live_config_to_provider(app_type, &live_config)
@@ -531,17 +537,61 @@ impl ProxyService {
                 }
             }
             AppType::OpenCode => {
-                let provider_id =
-                    crate::settings::get_effective_current_provider(&self.db, &AppType::OpenCode)
-                        .map_err(|e| format!("获取 OpenCode 当前供应商失败: {e}"))?;
+                let provider_entries = match live_config.get("provider").and_then(|v| v.as_object())
+                {
+                    Some(map) => map,
+                    None => return Ok(()),
+                };
 
-                if let Some(provider_id) = provider_id {
-                    if let Ok(Some(provider)) = self.db.get_provider_by_id(&provider_id, "opencode")
-                    {
-                        // OpenCode doesn't support token sync like other apps
-                        // For now, we just log and skip
-                        log::info!("OpenCode 供应商 {provider_id} 不需要同步 Token");
+                if provider_entries.is_empty() {
+                    return Ok(());
+                }
+
+                let providers = self
+                    .db
+                    .get_all_providers("opencode")
+                    .map_err(|e| format!("读取 OpenCode 供应商失败: {e}"))?;
+
+                if providers.is_empty() {
+                    log::debug!("OpenCode 未配置供应商，跳过同步");
+                    return Ok(());
+                }
+
+                let mut key_to_id = HashMap::new();
+                for (id, provider) in providers.iter() {
+                    let key = provider
+                        .provider_key
+                        .clone()
+                        .filter(|k| !k.is_empty())
+                        .unwrap_or_else(|| ProviderService::generate_provider_key(&provider.name));
+                    key_to_id.insert(key, id.clone());
+                }
+
+                let mut updated_count = 0usize;
+                for (provider_key, config_value) in provider_entries {
+                    if !config_value.is_object() {
+                        continue;
                     }
+
+                    if let Some(provider_id) = key_to_id.get(provider_key) {
+                        if let Err(e) = self.db.update_provider_settings_config(
+                            "opencode",
+                            provider_id,
+                            config_value,
+                        ) {
+                            log::warn!("同步 OpenCode 供应商 {provider_id} 配置失败: {e}");
+                        } else {
+                            updated_count += 1;
+                        }
+                    } else {
+                        log::warn!(
+                            "opencode.json 中存在未知的 provider key '{provider_key}'，数据库中无对应供应商"
+                        );
+                    }
+                }
+
+                if updated_count > 0 {
+                    log::info!("已同步 {updated_count} 个 OpenCode 供应商配置到数据库");
                 }
             }
             AppType::Gemini => {
@@ -619,6 +669,11 @@ impl ProxyService {
                 .await?;
         }
 
+        if let Ok(live_config) = self.read_opencode_live() {
+            self.sync_live_config_to_provider(&AppType::OpenCode, &live_config)
+                .await?;
+        }
+
         log::info!("Live 配置 Token 同步完成");
         Ok(())
     }
@@ -671,7 +726,7 @@ impl ProxyService {
             .map_err(|e| format!("清除接管状态失败: {e}"))?;
 
         // 4. 清除所有应用的 enabled 状态（用户手动关闭，不需要下次自动恢复）
-        for app_type in ["claude", "codex", "gemini"] {
+        for app_type in ["claude", "codex", "gemini", "opencode"] {
             if let Ok(mut config) = self.db.get_proxy_config_for_app(app_type).await {
                 if config.enabled {
                     config.enabled = false;
@@ -766,6 +821,16 @@ impl ProxyService {
                 .map_err(|e| format!("备份 Gemini 配置失败: {e}"))?;
         }
 
+        // OpenCode
+        if let Ok(config) = self.read_opencode_live() {
+            let json_str = serde_json::to_string(&config)
+                .map_err(|e| format!("序列化 OpenCode 配置失败: {e}"))?;
+            self.db
+                .save_live_backup("opencode", &json_str)
+                .await
+                .map_err(|e| format!("备份 OpenCode 配置失败: {e}"))?;
+        }
+
         log::info!("已备份所有应用的 Live 配置");
         Ok(())
     }
@@ -776,10 +841,7 @@ impl ProxyService {
             AppType::Claude => ("claude", self.read_claude_live()?),
             AppType::Codex => ("codex", self.read_codex_live()?),
             AppType::Gemini => ("gemini", self.read_gemini_live()?),
-            AppType::OpenCode => (
-                "opencode",
-                crate::opencode_config::read_opencode_config().map_err(|e| e.to_string())?,
-            ),
+            AppType::OpenCode => ("opencode", self.read_opencode_live()?),
         };
 
         let json_str = serde_json::to_string(&config)
@@ -907,6 +969,13 @@ impl ProxyService {
             log::info!("Gemini Live 配置已接管，代理地址: {proxy_url}");
         }
 
+        if let Ok(mut config) = self.read_opencode_live() {
+            if Self::apply_opencode_takeover(&mut config, &proxy_url) {
+                self.write_opencode_live(&config)?;
+                log::info!("OpenCode 配置已接管，代理地址: {proxy_url}");
+            }
+        }
+
         Ok(())
     }
 
@@ -989,8 +1058,13 @@ impl ProxyService {
                 log::info!("Gemini Live 配置已接管，代理地址: {proxy_url}");
             }
             AppType::OpenCode => {
-                // OpenCode doesn't support proxy takeover in the same way
-                log::info!("OpenCode 不支持代理接管");
+                let mut config = self.read_opencode_live()?;
+                if Self::apply_opencode_takeover(&mut config, &proxy_url) {
+                    self.write_opencode_live(&config)?;
+                    log::info!("OpenCode 配置已接管，代理地址: {proxy_url}");
+                } else {
+                    log::info!("OpenCode 未检测到可接管的供应商配置");
+                }
             }
         }
 
@@ -1076,8 +1150,11 @@ impl ProxyService {
                 }
             }
             AppType::OpenCode => {
-                // OpenCode doesn't support proxy takeover in the same way
-                log::info!("OpenCode 不支持代理接管");
+                if let Ok(mut config) = self.read_opencode_live() {
+                    if Self::apply_opencode_takeover(&mut config, &proxy_url) {
+                        let _ = self.write_opencode_live(&config);
+                    }
+                }
             }
         }
 
@@ -1112,8 +1189,12 @@ impl ProxyService {
                 }
             }
             AppType::OpenCode => {
-                // OpenCode 不需要恢复 Live 配置
-                log::info!("OpenCode 不支持 Live 配置恢复");
+                if let Ok(Some(backup)) = self.db.get_live_backup("opencode").await {
+                    let config: Value = serde_json::from_str(&backup.original_config)
+                        .map_err(|e| format!("解析 OpenCode 备份失败: {e}"))?;
+                    self.write_opencode_live(&config)?;
+                    log::info!("OpenCode Live 配置已恢复");
+                }
             }
         }
 
@@ -1200,7 +1281,7 @@ impl ProxyService {
             AppType::Codex => self.write_codex_live(config),
             AppType::Gemini => self.write_gemini_live(config),
             AppType::OpenCode => {
-                crate::opencode_config::write_opencode_config(config)?;
+                self.write_opencode_live(config)?;
                 log::info!("OpenCode Live 配置已写入");
                 Ok(())
             }
@@ -1221,7 +1302,10 @@ impl ProxyService {
                 Ok(config) => Self::is_gemini_live_taken_over(&config),
                 Err(_) => false,
             },
-            AppType::OpenCode => false,
+            AppType::OpenCode => match self.read_opencode_live() {
+                Ok(config) => Self::is_opencode_live_taken_over(&config),
+                Err(_) => false,
+            },
         }
     }
 
@@ -1231,6 +1315,12 @@ impl ProxyService {
     /// - Ok(true)：已成功写回
     /// - Ok(false)：缺少当前供应商/供应商不存在，无法写回
     fn restore_live_from_ssot_for_app(&self, app_type: &AppType) -> Result<bool, String> {
+        if matches!(app_type, AppType::OpenCode) {
+            let config = self.build_opencode_config_from_db()?;
+            self.write_opencode_live(&config)?;
+            return Ok(true);
+        }
+
         let current_id = crate::settings::get_effective_current_provider(&self.db, app_type)
             .map_err(|e| format!("获取 {app_type:?} 当前供应商失败: {e}"))?;
 
@@ -1261,11 +1351,7 @@ impl ProxyService {
             AppType::Claude => self.cleanup_claude_takeover_placeholders_in_live(),
             AppType::Codex => self.cleanup_codex_takeover_placeholders_in_live(),
             AppType::Gemini => self.cleanup_gemini_takeover_placeholders_in_live(),
-            AppType::OpenCode => {
-                // OpenCode doesn't support takeover cleanup
-                log::info!("OpenCode 不支持接管清理");
-                Ok(())
-            }
+            AppType::OpenCode => self.cleanup_opencode_takeover_placeholders(),
         }
     }
 
@@ -1405,10 +1491,112 @@ impl ProxyService {
         Ok(())
     }
 
+    fn cleanup_opencode_takeover_placeholders(&self) -> Result<(), String> {
+        let mut config = self.read_opencode_live()?;
+        let Some(provider_map) = config.get_mut("provider").and_then(|v| v.as_object_mut()) else {
+            return Ok(());
+        };
+
+        let mut changed = false;
+        for provider_config in provider_map.values_mut() {
+            let Some(provider_obj) = provider_config.as_object_mut() else {
+                continue;
+            };
+            if let Some(options) = provider_obj
+                .get_mut("options")
+                .and_then(|v| v.as_object_mut())
+            {
+                if options.get("apiKey").and_then(|v| v.as_str()) == Some(PROXY_TOKEN_PLACEHOLDER) {
+                    options.remove("apiKey");
+                    changed = true;
+                }
+
+                if options
+                    .get("baseURL")
+                    .and_then(|v| v.as_str())
+                    .map(Self::is_local_proxy_url)
+                    .unwrap_or(false)
+                {
+                    options.remove("baseURL");
+                    changed = true;
+                }
+            }
+        }
+
+        if changed {
+            self.write_opencode_live(&config)?;
+        }
+        Ok(())
+    }
+
+    fn build_opencode_config_from_db(&self) -> Result<Value, String> {
+        let providers = self
+            .db
+            .get_all_providers("opencode")
+            .map_err(|e| format!("读取 OpenCode 供应商失败: {e}"))?;
+
+        let mut config = crate::opencode_config::read_opencode_config()
+            .unwrap_or_else(|_| crate::opencode_config::default_opencode_config());
+
+        let config_obj = config
+            .as_object_mut()
+            .ok_or_else(|| "OpenCode 配置必须是 JSON 对象".to_string())?;
+        let provider_map = config_obj
+            .entry("provider")
+            .or_insert_with(|| json!({}))
+            .as_object_mut()
+            .ok_or_else(|| "OpenCode provider 字段必须是对象".to_string())?;
+
+        provider_map.clear();
+
+        for (_id, provider) in providers.iter() {
+            let key = provider
+                .provider_key
+                .clone()
+                .filter(|k| !k.is_empty())
+                .unwrap_or_else(|| ProviderService::generate_provider_key(&provider.name));
+            provider_map.insert(key, provider.settings_config.clone());
+        }
+
+        Ok(config)
+    }
+
+    fn apply_opencode_takeover(config: &mut Value, proxy_url: &str) -> bool {
+        let provider_map = match config.get_mut("provider").and_then(|v| v.as_object_mut()) {
+            Some(map) => map,
+            None => return false,
+        };
+
+        let mut changed = false;
+
+        for provider_config in provider_map.values_mut() {
+            let Some(provider_obj) = provider_config.as_object_mut() else {
+                continue;
+            };
+
+            let options = provider_obj.entry("options").or_insert_with(|| json!({}));
+            let Some(options_obj) = options.as_object_mut() else {
+                continue;
+            };
+
+            if options_obj.get("baseURL").and_then(|v| v.as_str()) != Some(proxy_url) {
+                options_obj.insert("baseURL".to_string(), json!(proxy_url));
+                changed = true;
+            }
+
+            if options_obj.get("apiKey").and_then(|v| v.as_str()) != Some(PROXY_TOKEN_PLACEHOLDER) {
+                options_obj.insert("apiKey".to_string(), json!(PROXY_TOKEN_PLACEHOLDER));
+                changed = true;
+            }
+        }
+
+        changed
+    }
+
     /// 检查是否处于 Live 接管模式
     pub async fn is_takeover_active(&self) -> Result<bool, String> {
         let status = self.get_takeover_status().await?;
-        Ok(status.claude || status.codex || status.gemini)
+        Ok(status.claude || status.codex || status.gemini || status.opencode)
     }
 
     /// 从异常退出中恢复（启动时调用）
@@ -1458,6 +1646,12 @@ impl ProxyService {
             }
         }
 
+        if let Ok(config) = self.read_opencode_live() {
+            if Self::is_opencode_live_taken_over(&config) {
+                return true;
+            }
+        }
+
         false
     }
 
@@ -1497,6 +1691,34 @@ impl ProxyService {
         env.get("GEMINI_API_KEY").and_then(|v| v.as_str()) == Some(PROXY_TOKEN_PLACEHOLDER)
     }
 
+    fn is_opencode_live_taken_over(config: &Value) -> bool {
+        let provider_map = match config.get("provider").and_then(|v| v.as_object()) {
+            Some(map) => map,
+            None => return false,
+        };
+
+        for provider in provider_map.values() {
+            let Some(options) = provider.get("options").and_then(|v| v.as_object()) else {
+                continue;
+            };
+
+            if options.get("apiKey").and_then(|v| v.as_str()) == Some(PROXY_TOKEN_PLACEHOLDER) {
+                return true;
+            }
+
+            if options
+                .get("baseURL")
+                .and_then(|v| v.as_str())
+                .map(Self::is_local_proxy_url)
+                .unwrap_or(false)
+            {
+                return true;
+            }
+        }
+
+        false
+    }
+
     /// 从供应商配置更新 Live 备份（用于代理模式下的热切换）
     ///
     /// 与 backup_live_configs() 不同，此方法从供应商的 settings_config 生成备份，
@@ -1527,6 +1749,11 @@ impl ProxyService {
                 };
                 serde_json::to_string(&env_backup)
                     .map_err(|e| format!("序列化 Gemini 配置失败: {e}"))?
+            }
+            "opencode" => {
+                let config = self.build_opencode_config_from_db()?;
+                serde_json::to_string(&config)
+                    .map_err(|e| format!("序列化 OpenCode 配置失败: {e}"))?
             }
             _ => return Err(format!("未知的应用类型: {app_type}")),
         };
@@ -1713,6 +1940,16 @@ impl ProxyService {
         Ok(())
     }
 
+    fn read_opencode_live(&self) -> Result<Value, String> {
+        crate::opencode_config::read_opencode_config()
+            .map_err(|e| format!("读取 OpenCode 配置失败: {e}"))
+    }
+
+    fn write_opencode_live(&self, config: &Value) -> Result<(), String> {
+        crate::opencode_config::write_opencode_config(config)
+            .map_err(|e| format!("写入 OpenCode 配置失败: {e}"))
+    }
+
     // ==================== 原有方法 ====================
 
     /// 获取服务器状态
@@ -1799,6 +2036,11 @@ impl ProxyService {
                 }
                 if takeover.gemini {
                     self.takeover_live_config_best_effort(&AppType::Gemini)
+                        .await?;
+                    updated_any = true;
+                }
+                if takeover.opencode {
+                    self.takeover_live_config_best_effort(&AppType::OpenCode)
                         .await?;
                     updated_any = true;
                 }
@@ -1961,6 +2203,55 @@ model = "gpt-5.1-codex"
             .expect("base_url should exist");
 
         assert_eq!(base_url, new_url);
+    }
+
+    #[test]
+    fn apply_opencode_takeover_updates_options() {
+        let proxy_url = "http://127.0.0.1:15721";
+        let mut config = json!({
+            "provider": {
+                "demo": {
+                    "options": {
+                        "baseURL": "https://api.example.com",
+                        "apiKey": "sk-old"
+                    }
+                }
+            }
+        });
+
+        let changed = ProxyService::apply_opencode_takeover(&mut config, proxy_url);
+        assert!(changed, "takeover should report changes");
+
+        let options = config["provider"]["demo"]["options"]
+            .as_object()
+            .expect("options object");
+        assert_eq!(
+            options.get("baseURL").and_then(|v| v.as_str()),
+            Some(proxy_url)
+        );
+        assert_eq!(
+            options.get("apiKey").and_then(|v| v.as_str()),
+            Some(PROXY_TOKEN_PLACEHOLDER)
+        );
+    }
+
+    #[test]
+    fn is_opencode_live_taken_over_detects_placeholder() {
+        let config = json!({
+            "provider": {
+                "demo": {
+                    "options": {
+                        "baseURL": "http://127.0.0.1:15721",
+                        "apiKey": PROXY_TOKEN_PLACEHOLDER
+                    }
+                }
+            }
+        });
+
+        assert!(
+            ProxyService::is_opencode_live_taken_over(&config),
+            "placeholder should be detected"
+        );
     }
 
     #[tokio::test]

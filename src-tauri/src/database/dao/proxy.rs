@@ -181,7 +181,7 @@ impl Database {
     async fn init_proxy_config_rows(&self) -> Result<(), AppError> {
         let conn = lock_conn!(self.conn);
 
-        for app_type in &["claude", "codex", "gemini"] {
+        for app_type in &["claude", "codex", "gemini", "opencode"] {
             conn.execute(
                 "INSERT OR IGNORE INTO proxy_config (app_type) VALUES (?1)",
                 [app_type],

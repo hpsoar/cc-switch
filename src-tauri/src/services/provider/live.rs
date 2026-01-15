@@ -14,6 +14,7 @@ use crate::opencode_config::{read_opencode_config, write_opencode_config};
 use crate::provider::Provider;
 use crate::services::mcp::McpService;
 use crate::store::AppState;
+use futures::executor::block_on;
 
 use super::gemini_auth::{
     detect_gemini_auth_type, ensure_google_oauth_security_flag, GeminiAuthType,
@@ -185,8 +186,18 @@ pub(crate) fn sync_all_opencode_providers(state: &AppState) -> Result<(), AppErr
         provider_map.insert(provider_key, provider.settings_config.clone());
     }
 
-    // Write config
-    write_opencode_config(&Value::Object(config_obj.clone()))?;
+    // 写入或更新备份（接管模式下跳过实际文件写入）
+    if state
+        .proxy_service
+        .detect_takeover_in_live_config_for_app(&AppType::OpenCode)
+    {
+        let json_str = serde_json::to_string(&config)
+            .map_err(|e| AppError::Message(format!("Serialization failed: {e}")))?;
+        block_on(state.db.save_live_backup("opencode", &json_str))?;
+        log::info!("OpenCode 处于代理接管模式：已更新备份，跳过写入 opencode.json");
+    } else {
+        write_opencode_config(&config)?;
+    }
 
     // Log conflicts as warnings
     if !conflicts.is_empty() {

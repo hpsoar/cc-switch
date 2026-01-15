@@ -281,10 +281,7 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent
-        zIndex="top"
-        className="max-w-3xl max-h-[85vh] flex flex-col p-0"
-      >
+      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-0">
         <DialogHeader className="flex-shrink-0 border-b border-border-default px-6 py-4">
           <DialogTitle className="flex items-center gap-2">
             <Play className="w-5 h-5 text-primary" />
@@ -310,17 +307,10 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
                   })}
                 />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="popper">
                 {tools.map((t) => (
                   <SelectItem key={t.name} value={t.name}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{t.name}</span>
-                      {t.description && (
-                        <span className="text-xs text-muted-foreground">
-                          {t.description}
-                        </span>
-                      )}
-                    </div>
+                    {t.name}
                   </SelectItem>
                 ))}
               </SelectContent>

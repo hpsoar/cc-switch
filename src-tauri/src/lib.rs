@@ -776,6 +776,7 @@ pub fn run() {
             commands::toggle_mcp_app,
             commands::import_mcp_from_apps,
             commands::test_mcp_server,
+            commands::debug_test_mcp_servers,
             // Prompt management
             commands::get_prompts,
             commands::upsert_prompt,

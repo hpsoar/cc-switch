@@ -420,20 +420,63 @@ async fn test_http_server(
     url: String,
     headers: Option<HashMap<String, String>>,
 ) -> Result<McpTestResult, String> {
+    use log::{debug, info};
+
+    info!("Testing HTTP MCP server at: {}", url);
+
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(30))
         .build()
         .map_err(|e| e.to_string())?;
 
-    let mut request = client.get(&url);
+    // Build headers
+    let mut req_headers = reqwest::header::HeaderMap::new();
+    req_headers.insert("Content-Type", "application/json".parse().unwrap());
+    req_headers.insert("Accept", "application/json, text/event-stream".parse().unwrap());
 
-    if let Some(hdrs) = headers {
+    if let Some(hdrs) = &headers {
+        debug!("Adding custom headers: {:?}", hdrs);
         for (key, value) in hdrs {
-            request = request.header(key, value);
+            if let Ok(header_name) = reqwest::header::HeaderName::from_bytes(key.as_bytes()) {
+                if let Ok(header_value) = reqwest::header::HeaderValue::from_str(value) {
+                    req_headers.insert(header_name, header_value);
+                }
+            }
         }
     }
 
-    let response = match timeout(Duration::from_secs(15), request.send()).await {
+    // MCP initialize request
+    let initialize_request = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {
+                "roots": {
+                    "listChanged": true
+                }
+            },
+            "clientInfo": {
+                "name": "cc-switch-test",
+                "version": "1.0.0"
+            }
+        }
+    });
+
+    debug!("Sending initialize request: {}", initialize_request);
+
+    // Send initialize request
+    let response = match timeout(
+        Duration::from_secs(15),
+        client
+            .post(&url)
+            .headers(req_headers.clone())
+            .json(&initialize_request)
+            .send(),
+    )
+    .await
+    {
         Ok(Ok(resp)) => resp,
         Ok(Err(e)) => {
             return Ok(McpTestResult {
@@ -460,34 +503,251 @@ async fn test_http_server(
     };
 
     let status = response.status();
+    debug!("Received response with status: {}", status);
 
-    if status.is_success() || status.is_client_error() {
-        Ok(McpTestResult {
-            success: true,
-            message: format!("Remote server is reachable (HTTP {})", status.as_u16()),
-            details: Some(format!(
-                "URL: {}\nStatus: {}\nNote: Full MCP protocol test for remote servers requires SSE support",
-                url, status
-            )),
-            server_info: None,
-            tools: None,
-            resources: None,
-            prompts: None,
-        })
-    } else {
-        Ok(McpTestResult {
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        debug!("Error response body: {}", body);
+        return Ok(McpTestResult {
             success: false,
             message: format!("Server returned HTTP {}", status.as_u16()),
             details: Some(format!(
-                "The server at {} returned status code {}",
-                url, status
+                "The server at {} returned status code {}\nResponse: {}",
+                url, status, body
             )),
             server_info: None,
             tools: None,
             resources: None,
             prompts: None,
-        })
+        });
     }
+
+    // Parse initialize response
+    let response_text = match response.text().await {
+        Ok(text) => {
+            debug!("Response body: {}", text);
+            text
+        }
+        Err(e) => {
+            return Ok(McpTestResult {
+                success: false,
+                message: "Failed to read response".to_string(),
+                details: Some(format!("Error reading response: {}", e)),
+                server_info: None,
+                tools: None,
+                resources: None,
+                prompts: None,
+            });
+        }
+    };
+
+    let init_response: Value = match serde_json::from_str(&response_text) {
+        Ok(v) => v,
+        Err(e) => {
+            return Ok(McpTestResult {
+                success: false,
+                message: "Invalid JSON response".to_string(),
+                details: Some(format!("Failed to parse response: {}\nBody: {}", e, response_text)),
+                server_info: None,
+                tools: None,
+                resources: None,
+                prompts: None,
+            });
+        }
+    };
+
+    // Check for error in response
+    if let Some(error) = init_response.get("error") {
+        return Ok(McpTestResult {
+            success: false,
+            message: "MCP initialization failed".to_string(),
+            details: Some(format!("Server returned error: {}", error)),
+            server_info: None,
+            tools: None,
+            resources: None,
+            prompts: None,
+        });
+    }
+
+    // Extract server info
+    let server_info = init_response
+        .get("result")
+        .and_then(|r| {
+            let name = r.get("serverInfo")?.get("name")?.as_str()?.to_string();
+            let version = r.get("serverInfo")?.get("version")?.as_str()?.to_string();
+            let protocol_version = r
+                .get("protocolVersion")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+                .to_string();
+            Some(ServerInfo {
+                name,
+                version,
+                protocol_version,
+            })
+        });
+
+    if server_info.is_none() {
+        return Ok(McpTestResult {
+            success: false,
+            message: "Invalid initialize response".to_string(),
+            details: Some(format!(
+                "Could not parse server info from response: {}",
+                init_response
+            )),
+            server_info: None,
+            tools: None,
+            resources: None,
+            prompts: None,
+        });
+    }
+
+    let server_info = server_info.unwrap();
+    info!("Connected to MCP server: {} v{}", server_info.name, server_info.version);
+
+    // Request tools list
+    let tools_request = json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/list",
+        "params": {}
+    });
+
+    debug!("Requesting tools list");
+    let tools_response = match timeout(
+        Duration::from_secs(10),
+        client
+            .post(&url)
+            .headers(req_headers.clone())
+            .json(&tools_request)
+            .send(),
+    )
+    .await
+    {
+        Ok(Ok(resp)) => resp.json::<Value>().await.ok(),
+        _ => None,
+    };
+
+    // Request resources list
+    let resources_request = json!({
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "resources/list",
+        "params": {}
+    });
+
+    debug!("Requesting resources list");
+    let resources_response = match timeout(
+        Duration::from_secs(10),
+        client
+            .post(&url)
+            .headers(req_headers.clone())
+            .json(&resources_request)
+            .send(),
+    )
+    .await
+    {
+        Ok(Ok(resp)) => resp.json::<Value>().await.ok(),
+        _ => None,
+    };
+
+    // Request prompts list
+    let prompts_request = json!({
+        "jsonrpc": "2.0",
+        "id": 4,
+        "method": "prompts/list",
+        "params": {}
+    });
+
+    debug!("Requesting prompts list");
+    let prompts_response = match timeout(
+        Duration::from_secs(10),
+        client.post(&url).headers(req_headers).json(&prompts_request).send(),
+    )
+    .await
+    {
+        Ok(Ok(resp)) => resp.json::<Value>().await.ok(),
+        _ => None,
+    };
+
+    // Parse tools
+    let tools = tools_response.and_then(|resp| {
+        resp.get("result")
+            .and_then(|r| r.get("tools"))
+            .and_then(|t| t.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|item| {
+                        let name = item.get("name")?.as_str()?.to_string();
+                        let description = item
+                            .get("description")
+                            .and_then(|d| d.as_str())
+                            .map(String::from);
+                        Some(ToolInfo { name, description })
+                    })
+                    .collect::<Vec<_>>()
+            })
+    });
+
+    // Parse resources
+    let resources = resources_response.and_then(|resp| {
+        resp.get("result")
+            .and_then(|r| r.get("resources"))
+            .and_then(|r| r.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|item| {
+                        let uri = item.get("uri")?.as_str()?.to_string();
+                        let name = item.get("name").and_then(|n| n.as_str()).map(String::from);
+                        let description = item
+                            .get("description")
+                            .and_then(|d| d.as_str())
+                            .map(String::from);
+                        Some(ResourceInfo {
+                            uri,
+                            name,
+                            description,
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+    });
+
+    // Parse prompts
+    let prompts = prompts_response.and_then(|resp| {
+        resp.get("result")
+            .and_then(|r| r.get("prompts"))
+            .and_then(|p| p.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|item| {
+                        let name = item.get("name")?.as_str()?.to_string();
+                        let description = item
+                            .get("description")
+                            .and_then(|d| d.as_str())
+                            .map(String::from);
+                        Some(PromptInfo { name, description })
+                    })
+                    .collect::<Vec<_>>()
+            })
+    });
+
+    Ok(McpTestResult {
+        success: true,
+        message: format!("MCP server '{}' initialized successfully", server_info.name),
+        details: Some(format!(
+            "Protocol Version: {}\nServer Version: {}\nTools: {}\nResources: {}\nPrompts: {}",
+            server_info.protocol_version,
+            server_info.version,
+            tools.as_ref().map(|t| t.len()).unwrap_or(0),
+            resources.as_ref().map(|r| r.len()).unwrap_or(0),
+            prompts.as_ref().map(|p| p.len()).unwrap_or(0)
+        )),
+        server_info: Some(server_info),
+        tools,
+        resources,
+        prompts,
+    })
 }
 
 /// 测试 MCP 服务器
@@ -544,8 +804,133 @@ pub async fn test_mcp_server(spec: Value) -> Result<McpTestResult, String> {
 
             test_http_server(url, headers).await
         }
-        _ => Err(format!("Unsupported server type: {}", server_type)),
+_ => Err(format!("Unsupported server type: {}", server_type)),
     }
+}
+
+// ============================================================================
+// 调试测试命令：用于直接测试 MCP 服务器
+// ============================================================================
+
+#[tauri::command]
+pub async fn debug_test_mcp_servers() -> Result<String, String> {
+    use serde_json::json;
+
+    let mut results = Vec::new();
+    results.push("=== MCP Server Test Suite ===\n".to_string());
+
+    // 测试 1: stdio 类型 - mcp-server (如果安装了)
+    results.push("\nTest 1: stdio - mcp-server --help".to_string());
+    let stdio_spec = json!({
+        "type": "stdio",
+        "command": ["mcp-server", "--help"]
+    });
+
+    match test_mcp_server(stdio_spec).await {
+        Ok(result) => {
+            results.push(format!("  Success: {}", result.success));
+            results.push(format!("  Message: {}", result.message));
+            if let Some(details) = result.details {
+                results.push(format!("  Details: {}", details));
+            }
+        }
+        Err(e) => {
+            results.push(format!("  Error: {}", e));
+        }
+    }
+
+    // 测试 2: stdio 类型 - uvx mcp-server-filesystem
+    results.push("\nTest 2: stdio - uvx mcp-server-filesystem".to_string());
+    let filesystem_spec = json!({
+        "type": "stdio",
+        "command": ["uvx", "mcp-server-filesystem", "/tmp"]
+    });
+
+    match test_mcp_server(filesystem_spec).await {
+        Ok(result) => {
+            results.push(format!("  Success: {}", result.success));
+            results.push(format!("  Message: {}", result.message));
+            if let Some(details) = result.details {
+                results.push(format!("  Details: {}", details));
+            }
+            if let Some(tools) = result.tools {
+                results.push(format!("  Tools count: {}", tools.len()));
+            }
+        }
+        Err(e) => {
+            results.push(format!("  Error: {}", e));
+        }
+    }
+
+    // 测试 3: stdio 类型 - chrome-devtools-mcp
+    results.push("\nTest 3: stdio - chrome-devtools-mcp".to_string());
+    let chrome_spec = json!({
+        "type": "stdio",
+        "command": ["npx", "-y", "chrome-devtools-mcp@latest"],
+        "env": {}
+    });
+
+    match test_mcp_server(chrome_spec).await {
+        Ok(result) => {
+            results.push(format!("  Success: {}", result.success));
+            results.push(format!("  Message: {}", result.message));
+            if let Some(details) = result.details {
+                results.push(format!("  Details: {}", details));
+            }
+            if result.tools.is_some() {
+                results.push("  Tools: Available".to_string());
+            }
+        }
+        Err(e) => {
+            results.push(format!("  Error: {}", e));
+        }
+    }
+
+    // 测试 4: http 类型 - context7 (带 header)
+    results.push("\nTest 4: http - https://mcp.context7.com/mcp".to_string());
+    let http_spec = json!({
+        "type": "http",
+        "url": "https://mcp.context7.com/mcp",
+        "headers": {
+            "CONTEXT7_API_KEY": "ctx7sk-f888da08-577d-4186-8109-df8779a74062"
+        }
+    });
+
+    match test_mcp_server(http_spec).await {
+        Ok(result) => {
+            results.push(format!("  Success: {}", result.success));
+            results.push(format!("  Message: {}", result.message));
+            if let Some(details) = result.details {
+                results.push(format!("  Details: {}", details));
+            }
+        }
+        Err(e) => {
+            results.push(format!("  Error: {}", e));
+        }
+    }
+
+    // 测试 5: http/remote 类型 - alphavantage
+    results.push("\nTest 5: remote - https://mcp.alphavantage.co/mcp".to_string());
+    let remote_spec = json!({
+        "type": "remote",
+        "url": "https://mcp.alphavantage.co/mcp?apikey=IWDJBS4B5USE1ATH"
+    });
+
+    match test_mcp_server(remote_spec).await {
+        Ok(result) => {
+            results.push(format!("  Success: {}", result.success));
+            results.push(format!("  Message: {}", result.message));
+            if let Some(details) = result.details {
+                results.push(format!("  Details: {}", details));
+            }
+        }
+        Err(e) => {
+            results.push(format!("  Error: {}", e));
+        }
+    }
+
+    results.push("\n=== Test Suite Complete ===".to_string());
+    Ok(results.join("\n"))
 }
 
 // ============================================================================
@@ -592,7 +977,7 @@ async fn test_mcp_servers() {
                 println!("  Details: {}", details);
             }
             if let Some(tools) = result.tools {
-                println!("  Tools count: {}", tools.len);
+                println!("  Tools count: {}", tools.len());
             }
         }
         Err(e) => {
@@ -616,7 +1001,7 @@ async fn test_mcp_servers() {
                 println!("  Details: {}", details);
             }
             if let Some(tools) = result.tools {
-                println!("  Tools count: {}", tools.len);
+                println!("  Tools count: {}", tools.len());
             }
         }
         Err(e) => {

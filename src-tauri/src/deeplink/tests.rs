@@ -124,6 +124,7 @@ fn test_build_gemini_provider_with_model() {
     let request = DeepLinkImportRequest {
         version: "v1".to_string(),
         resource: "provider".to_string(),
+        id: None,
         app: Some("gemini".to_string()),
         name: Some("Test Gemini".to_string()),
         homepage: Some("https://example.com".to_string()),
@@ -177,6 +178,7 @@ fn test_build_gemini_provider_without_model() {
     let request = DeepLinkImportRequest {
         version: "v1".to_string(),
         resource: "provider".to_string(),
+        id: None,
         app: Some("gemini".to_string()),
         name: Some("Test Gemini".to_string()),
         homepage: Some("https://example.com".to_string()),
@@ -225,6 +227,7 @@ fn test_parse_and_merge_config_claude() {
     let request = DeepLinkImportRequest {
         version: "v1".to_string(),
         resource: "provider".to_string(),
+        id: None,
         app: Some("claude".to_string()),
         name: Some("Test".to_string()),
         homepage: None,
@@ -275,6 +278,7 @@ fn test_parse_and_merge_config_url_override() {
     let request = DeepLinkImportRequest {
         version: "v1".to_string(),
         resource: "provider".to_string(),
+        id: None,
         app: Some("claude".to_string()),
         name: Some("Test".to_string()),
         homepage: None,

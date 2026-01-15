@@ -163,6 +163,7 @@ mod tests {
             icon: None,
             icon_color: None,
             in_failover_queue: false,
+            provider_key: None,
         }
     }
 
@@ -180,6 +181,7 @@ mod tests {
             icon: None,
             icon_color: None,
             in_failover_queue: false,
+            provider_key: None,
         }
     }
 
@@ -201,6 +203,7 @@ mod tests {
             icon: None,
             icon_color: None,
             in_failover_queue: false,
+            provider_key: None,
         }
     }
 

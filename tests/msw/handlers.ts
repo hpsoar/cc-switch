@@ -281,6 +281,25 @@ export const handlers = [
 
   http.post(`${TAURI_ENDPOINT}/is_live_takeover_active`, () => success(false)),
 
+  // Environment conflict management
+  http.post(`${TAURI_ENDPOINT}/check_env_conflicts`, async ({ request }) => {
+    await withJson<{ app: AppId }>(request);
+    return success([]);
+  }),
+
+  http.post(`${TAURI_ENDPOINT}/delete_env_vars`, async ({ request }) => {
+    const { conflicts = [] } = await withJson<{ conflicts: unknown[] }>(
+      request,
+    );
+    return success({
+      backupPath: "/tmp/mock-env-backup.json",
+      timestamp: new Date().toISOString(),
+      conflicts,
+    });
+  }),
+
+  http.post(`${TAURI_ENDPOINT}/restore_env_backup`, () => success(true)),
+
   // Failover / circuit breaker defaults
   http.post(`${TAURI_ENDPOINT}/get_failover_queue`, () => success([])),
   http.post(`${TAURI_ENDPOINT}/get_available_providers_for_failover`, () =>

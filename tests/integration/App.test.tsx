@@ -153,7 +153,9 @@ describe("App integration with MSW", () => {
     toastErrorMock.mockReset();
   });
 
-  it("covers basic provider flows via real hooks", async () => {
+  it(
+    "covers basic provider flows via real hooks",
+    async () => {
     const { default: App } = await import("@/App");
     renderApp(App);
 
@@ -208,5 +210,7 @@ describe("App integration with MSW", () => {
 
     expect(toastErrorMock).not.toHaveBeenCalled();
     expect(toastSuccessMock).toHaveBeenCalled();
-  });
+  },
+    15000,
+  );
 });

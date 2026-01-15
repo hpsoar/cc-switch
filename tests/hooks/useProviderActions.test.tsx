@@ -1,247 +1,194 @@
-import { ReactNode } from "react";
 import { renderHook, act } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useProviderActions } from "@/hooks/useProviderActions";
-import type { Provider } from "@/types";
+import type { Provider, UsageScript } from "@/types";
 
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
 
 vi.mock("sonner", () => ({
   toast: {
-    success: toastSuccessMock,
-    error: toastErrorMock,
+    success: (...args: unknown[]) => toastSuccessMock(...args),
+    error: (...args: unknown[]) => toastErrorMock(...args),
   },
 }));
 
-vi.mock("@/lib/query", () => ({
-  useQueryClient: vi.fn(() => new QueryClient()),
+const invalidateQueriesMock = vi.fn();
+
+vi.mock("@tanstack/react-query", async (importActual) => {
+  const actual = await importActual<typeof import("@tanstack/react-query")>();
+  return {
+    ...actual,
+    useQueryClient: () => ({
+      invalidateQueries: invalidateQueriesMock,
+    }),
+  };
+});
+
+const addMutateMock = vi.fn();
+const updateMutateMock = vi.fn();
+const deleteMutateMock = vi.fn();
+const switchMutateMock = vi.fn();
+
+vi.mock("@/lib/query", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/query")>(
+    "@/lib/query",
+  );
+  return {
+    ...actual,
+    useAddProviderMutation: () => ({ mutateAsync: addMutateMock, isPending: false }),
+    useUpdateProviderMutation: () => ({
+      mutateAsync: updateMutateMock,
+      isPending: false,
+    }),
+    useDeleteProviderMutation: () => ({
+      mutateAsync: deleteMutateMock,
+      isPending: false,
+    }),
+    useSwitchProviderMutation: () => ({
+      mutateAsync: switchMutateMock,
+      isPending: false,
+    }),
+  };
+});
+
+const updateTrayMenuMock = vi.fn();
+const providersUpdateMock = vi.fn();
+const settingsGetMock = vi.fn();
+const applyPluginMock = vi.fn();
+
+vi.mock("@/lib/api", () => ({
+  providersApi: {
+    updateTrayMenu: (...args: unknown[]) => updateTrayMenuMock(...args),
+    update: (...args: unknown[]) => providersUpdateMock(...args),
+  },
+  settingsApi: {
+    get: (...args: unknown[]) => settingsGetMock(...args),
+    applyClaudePluginConfig: (...args: unknown[]) => applyPluginMock(...args),
+  },
 }));
 
-vi.mock("@/lib/state", () => ({
-  useAppStore: vi.fn(() => ({
-    app: "claude",
-    setApp: vi.fn(),
-  })),
-}));
+const createProvider = (overrides: Partial<Provider> = {}): Provider => ({
+  id: "provider-1",
+  name: "Test Provider",
+  app: "claude",
+  settingsConfig: {},
+  category: "custom",
+  ...overrides,
+});
 
-describe("useProviderActions - OpenCode", () => {
+const usageScript: UsageScript = {
+  enabled: true,
+  language: "javascript",
+  code: "return 1",
+};
+
+describe("useProviderActions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    updateTrayMenuMock.mockResolvedValue(undefined);
+    providersUpdateMock.mockResolvedValue(undefined);
+    settingsGetMock.mockResolvedValue({
+      enableClaudePluginIntegration: true,
+    });
+    applyPluginMock.mockResolvedValue(undefined);
   });
 
-  describe("addProvider", () => {
-    it("should add OpenCode provider successfully", async () => {
-      const wrapper = renderHook(() => useProviderActions());
+  it("adds provider through mutation", async () => {
+    addMutateMock.mockResolvedValueOnce({ success: true });
+    const { result } = renderHook(() => useProviderActions("claude"));
+    const newProvider = {
+      name: "Added Provider",
+      app: "claude",
+      settingsConfig: {},
+      category: "custom",
+    } as Omit<Provider, "id">;
 
-      const mockProvider: Provider = {
-        id: "test-opencode-provider",
-        name: "Test OpenCode Provider",
-        settings_config: {
-          provider: {
-            type: "custom",
-            apiKey: "sk-test-key",
-            baseUrl: "https://custom.api.com/v1",
-            model: "custom-model",
-          },
-        },
-        app: "opencode",
-      };
-
-      const { result, mutateAsync } = wrapper.result.current;
-
-      vi.mocked(mutateAsync).mockResolvedValueOnce({
-        success: true,
-        provider: { ...mockProvider },
-      });
-
-      const result = await wrapper.result.current.addProvider(mockProvider);
-
-      expect(result.success).toBe(true);
-      expect(toastSuccessMock).toHaveBeenCalledWith("添加成功");
+    await act(async () => {
+      await result.current.addProvider(newProvider);
     });
 
-    it("should handle add provider error", async () => {
-      const wrapper = renderHook(() => useProviderActions());
-
-      const mockProvider: Provider = {
-        id: "test-opencode-provider",
-        name: "Test OpenCode Provider",
-        settings_config: {
-          provider: {
-            type: "custom",
-            apiKey: "sk-test-key",
-          },
-        },
-        app: "opencode",
-      };
-
-      const { mutateAsync } = wrapper.result.current;
-
-      vi.mocked(mutateAsync).mockResolvedValueOnce({
-        success: false,
-        error: "Failed to add provider",
-      });
-
-      const result = await wrapper.result.current.addProvider(mockProvider);
-
-      expect(result.success).toBe(false);
-      expect(toastErrorMock).toHaveBeenCalledWith("添加失败");
-    });
+    expect(addMutateMock).toHaveBeenCalledWith(newProvider);
   });
 
-  describe("updateProvider", () => {
-    it("should update OpenCode provider successfully", async () => {
-      const wrapper = renderHook(() => useProviderActions());
+  it("updates provider and refreshes tray menu", async () => {
+    updateMutateMock.mockResolvedValueOnce({ success: true });
+    const { result } = renderHook(() => useProviderActions("claude"));
+    const provider = createProvider();
 
-      const mockProvider: Provider = {
-        id: "test-opencode-provider",
-        name: "Updated OpenCode Provider",
-        settings_config: {
-          provider: {
-            type: "custom",
-            apiKey: "sk-updated-key",
-            baseUrl: "https://updated.api.com/v1",
-            model: "updated-model",
-          },
-        },
-        app: "opencode",
-      };
-
-      const { mutateAsync } = wrapper.result.current;
-
-      vi.mocked(mutateAsync).mockResolvedValueOnce({
-        success: true,
-      });
-
-      const result = await wrapper.result.current.updateProvider(mockProvider);
-
-      expect(result.success).toBe(true);
+    await act(async () => {
+      await result.current.updateProvider(provider);
     });
 
-    it("should handle update provider error", async () => {
-      const wrapper = renderHook(() => useProviderActions());
-
-      const mockProvider: Provider = {
-        id: "test-opencode-provider",
-        name: "Test OpenCode Provider",
-        settings_config: {},
-        app: "opencode",
-      };
-
-      const { mutateAsync } = wrapper.result.current;
-
-      vi.mocked(mutateAsync).mockResolvedValueOnce({
-        success: false,
-        error: "Failed to update provider",
-      });
-
-      const result = await wrapper.result.current.updateProvider(mockProvider);
-
-      expect(result.success).toBe(false);
-      expect(toastErrorMock).toHaveBeenCalled();
-    });
+    expect(updateMutateMock).toHaveBeenCalledWith(provider);
+    expect(updateTrayMenuMock).toHaveBeenCalled();
   });
 
-  describe("deleteProvider", () => {
-    it("should delete OpenCode provider successfully", async () => {
-      const wrapper = renderHook(() => useProviderActions());
+  it("switches provider and syncs Claude plugin when enabled", async () => {
+    switchMutateMock.mockResolvedValueOnce({ success: true });
+    const provider = createProvider({ id: "official", category: "official" });
+    const { result } = renderHook(() => useProviderActions("claude"));
 
-      const { mutateAsync } = wrapper.result.current;
-
-      vi.mocked(mutateAsync).mockResolvedValueOnce({
-        success: true,
-      });
-
-      const result =
-        await wrapper.result.current.deleteProvider("test-opencode-id");
-
-      expect(result.success).toBe(true);
-      expect(toastSuccessMock).toHaveBeenCalledWith("删除成功");
+    await act(async () => {
+      await result.current.switchProvider(provider);
     });
 
-    it("should handle delete provider error", async () => {
-      const wrapper = renderHook(() => useProviderActions());
-
-      const { mutateAsync } = wrapper.result.current;
-
-      vi.mocked(mutateAsync).mockResolvedValueOnce({
-        success: false,
-        error: "Failed to delete provider",
-      });
-
-      const result =
-        await wrapper.result.current.deleteProvider("test-opencode-id");
-
-      expect(result.success).toBe(false);
-      expect(toastErrorMock).toHaveBeenCalled();
-    });
+    expect(switchMutateMock).toHaveBeenCalledWith("official");
+    expect(settingsGetMock).toHaveBeenCalled();
+    expect(applyPluginMock).toHaveBeenCalledWith({ official: true });
   });
 
-  describe("switchProvider", () => {
-    it("should switch to OpenCode provider successfully", async () => {
-      const wrapper = renderHook(() => useProviderActions());
+  it("does not sync plugin for non-Claude apps", async () => {
+    switchMutateMock.mockResolvedValueOnce({ success: true });
+    const provider = createProvider({ id: "other", app: "codex" });
+    const { result } = renderHook(() => useProviderActions("codex"));
 
-      const { mutateAsync } = wrapper.result.current;
-
-      vi.mocked(mutateAsync).mockResolvedValueOnce({
-        success: true,
-      });
-
-      const result =
-        await wrapper.result.current.switchProvider("test-opencode-id");
-
-      expect(result.success).toBe(true);
-      expect(toastSuccessMock).toHaveBeenCalledWith("切换成功");
+    await act(async () => {
+      await result.current.switchProvider(provider);
     });
 
-    it("should handle switch provider error", async () => {
-      const wrapper = renderHook(() => useProviderActions());
-
-      const { mutateAsync } = wrapper.result.current;
-
-      vi.mocked(mutateAsync).mockResolvedValueOnce({
-        success: false,
-        error: "Failed to switch provider",
-      });
-
-      const result =
-        await wrapper.result.current.switchProvider("test-opencode-id");
-
-      expect(result.success).toBe(false);
-      expect(toastErrorMock).toHaveBeenCalled();
-    });
+    expect(switchMutateMock).toHaveBeenCalledWith("other");
+    expect(applyPluginMock).not.toHaveBeenCalled();
   });
 
-  describe("integration with MSW handlers", () => {
-    it("should call OpenCode specific handlers", async () => {
-      const wrapper = renderHook(() => useProviderActions());
+  it("deletes provider via mutation", async () => {
+    deleteMutateMock.mockResolvedValueOnce({ success: true });
+    const { result } = renderHook(() => useProviderActions("claude"));
 
-      const mockProvider: Provider = {
-        id: "test-opencode-msw-provider",
-        name: "MSW Test Provider",
-        settings_config: {
-          provider: {
-            type: "custom",
-            apiKey: "sk-msw-key",
-          },
-        },
-        app: "opencode",
-      };
-
-      const { mutateAsync } = wrapper.result.current;
-
-      // Mock the MSW handler response
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ success: true }),
-      } as Response);
-
-      const result = await wrapper.result.current.addProvider(mockProvider);
-
-      expect(result.success).toBe(true);
-      global.fetch.mockRestore();
+    await act(async () => {
+      await result.current.deleteProvider("provider-1");
     });
+
+    expect(deleteMutateMock).toHaveBeenCalledWith("provider-1");
+  });
+
+  it("saves usage script and invalidates cache", async () => {
+    const { result } = renderHook(() => useProviderActions("claude"));
+
+    await act(async () => {
+      await result.current.saveUsageScript(createProvider(), usageScript);
+    });
+
+    expect(providersUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        meta: { usage_script: usageScript },
+      }),
+      "claude",
+    );
+    expect(invalidateQueriesMock).toHaveBeenCalledWith({
+      queryKey: ["providers", "claude"],
+    });
+    expect(toastSuccessMock).toHaveBeenCalled();
+  });
+
+  it("shows error toast when usage script save fails", async () => {
+    providersUpdateMock.mockRejectedValueOnce(new Error("fail"));
+    const { result } = renderHook(() => useProviderActions("claude"));
+
+    await act(async () => {
+      await result.current.saveUsageScript(createProvider(), usageScript);
+    });
+
+    expect(toastErrorMock).toHaveBeenCalled();
   });
 });

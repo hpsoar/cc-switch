@@ -33,6 +33,12 @@ pub fn reset_test_fs() {
             }
         }
     }
+    let config_dir = home.join(".config");
+    if config_dir.exists() {
+        if let Err(err) = std::fs::remove_dir_all(&config_dir) {
+            eprintln!("failed to clean {}: {}", config_dir.display(), err);
+        }
+    }
     let claude_json = home.join(".claude.json");
     if claude_json.exists() {
         let _ = std::fs::remove_file(&claude_json);

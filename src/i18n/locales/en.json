@@ -28,6 +28,7 @@
     "formatSuccess": "Formatted successfully",
     "formatError": "Format failed: {{error}}",
     "copy": "Copy",
+    "copied": "Copied",
     "view": "View",
     "back": "Back",
     "refresh": "Refresh",
@@ -37,7 +38,8 @@
     "reset": "Reset",
     "actions": "Actions",
     "deleting": "Deleting...",
-    "noResults": "No results found"
+    "noResults": "No results found",
+    "showLess": "Show less"
   },
   "apiKeyInput": {
     "placeholder": "Enter API Key",

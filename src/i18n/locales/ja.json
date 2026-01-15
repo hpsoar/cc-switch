@@ -28,6 +28,7 @@
     "formatSuccess": "整形しました",
     "formatError": "整形に失敗しました: {{error}}",
     "copy": "コピー",
+    "copied": "コピーしました",
     "view": "表示",
     "back": "戻る",
     "refresh": "更新",
@@ -37,7 +38,8 @@
     "reset": "リセット",
     "actions": "操作",
     "deleting": "削除中...",
-    "noResults": "結果が見つかりません"
+    "noResults": "結果が見つかりません",
+    "showLess": "折りたたむ"
   },
   "apiKeyInput": {
     "placeholder": "API Key を入力",
@@ -747,6 +749,21 @@
     "tools": "ツール",
     "resources": "リソース",
     "prompts": "プロンプト",
+    "toolTest": {
+      "title": "ツールをテスト",
+      "selectTool": "ツールを選択",
+      "viewSchema": "入力スキーマを表示",
+      "parameters": "パラメータ",
+      "required": "必須",
+      "optional": "オプション",
+      "default": "デフォルト値",
+      "noParameters": "このツールにはパラメータがないか、空のスキーマを使用しています。",
+      "test": "テスト",
+      "execute": "実行",
+      "executing": "実行中...",
+      "executionFailed": "ツールの実行に失敗しました",
+      "missingRequired": "必須パラメータが不足しています: {{names}}"
+    },
     "noTestResults": "テスト結果がありません",
     "error": {
       "idRequired": "識別子を入力してください",

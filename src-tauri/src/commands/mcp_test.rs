@@ -1133,10 +1133,156 @@ pub async fn test_mcp_tool(
 
             test_stdio_tool(cmd, args, env, tool_name, tool_args).await
         }
+        "http" | "sse" | "remote" => {
+            let url = spec
+                .get("url")
+                .and_then(|v| v.as_str())
+                .ok_or("Missing 'url' field for remote server")?
+                .to_string();
+
+            let headers = spec.get("headers").and_then(|v| v.as_object()).map(|obj| {
+                obj.iter()
+                    .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                    .collect()
+            });
+
+            test_http_tool(url, headers, tool_name, tool_args).await
+        }
         _ => Err(format!(
             "Tool testing not supported for server type: {}",
             server_type
         )),
+    }
+}
+
+/// 测试 HTTP/SSE 类型的 MCP 工具
+async fn test_http_tool(
+    url: String,
+    headers: Option<HashMap<String, String>>,
+    tool_name: String,
+    tool_args: Value,
+) -> Result<ToolTestResult, String> {
+    use log::debug;
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    // Build headers
+    let mut req_headers = reqwest::header::HeaderMap::new();
+    req_headers.insert("Content-Type", "application/json".parse().unwrap());
+    req_headers.insert(
+        "Accept",
+        "application/json, text/event-stream".parse().unwrap(),
+    );
+
+    if let Some(hdrs) = &headers {
+        for (key, value) in hdrs {
+            if let Ok(header_name) = reqwest::header::HeaderName::from_bytes(key.as_bytes()) {
+                if let Ok(header_value) = reqwest::header::HeaderValue::from_str(value) {
+                    req_headers.insert(header_name, header_value);
+                }
+            }
+        }
+    }
+
+    // Call tool
+    let tool_call_request = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+            "name": tool_name,
+            "arguments": tool_args
+        }
+    });
+
+    debug!("Sending tool call request: {}", tool_call_request);
+
+    let response = match timeout(
+        Duration::from_secs(30),
+        client
+            .post(&url)
+            .headers(req_headers)
+            .json(&tool_call_request)
+            .send(),
+    )
+    .await
+    {
+        Ok(Ok(resp)) => resp,
+        Ok(Err(e)) => {
+            return Ok(ToolTestResult {
+                success: false,
+                message: format!("Failed to call tool '{}'", tool_name),
+                details: Some(format!("Connection error: {}", e)),
+            });
+        }
+        Err(_) => {
+            return Ok(ToolTestResult {
+                success: false,
+                message: format!("Tool '{}' call timeout", tool_name),
+                details: Some("Request timed out after 30 seconds".to_string()),
+            });
+        }
+    };
+
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        return Ok(ToolTestResult {
+            success: false,
+            message: format!("Tool '{}' call failed", tool_name),
+            details: Some(format!(
+                "Server returned HTTP {}: {}",
+                status.as_u16(),
+                body
+            )),
+        });
+    }
+
+    // Check if response is SSE format
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|ct| ct.to_str().ok())
+        .unwrap_or("");
+
+    let is_sse = content_type.contains("text/event-stream");
+
+    let response_text = if is_sse {
+        let full_text = response.text().await.unwrap_or_default();
+        let json_str = full_text
+            .lines()
+            .filter(|line| line.starts_with("data:"))
+            .filter_map(|line| line.strip_prefix("data:"))
+            .next()
+            .unwrap_or("");
+        json_str.to_string()
+    } else {
+        response.text().await.unwrap_or_default()
+    };
+
+    let response_value: Value = serde_json::from_str(&response_text).map_err(|e| e.to_string())?;
+
+    if let Some(result) = response_value.get("result") {
+        Ok(ToolTestResult {
+            success: true,
+            message: format!("Tool '{}' executed successfully", tool_name),
+            details: Some(format!("Result: {}", result)),
+        })
+    } else if let Some(error) = response_value.get("error") {
+        Ok(ToolTestResult {
+            success: false,
+            message: format!("Tool '{}' execution failed", tool_name),
+            details: Some(format!("Error: {}", error)),
+        })
+    } else {
+        Ok(ToolTestResult {
+            success: false,
+            message: "Invalid tool response".to_string(),
+            details: Some(format!("Response: {}", response_value)),
+        })
     }
 }
 

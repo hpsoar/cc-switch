@@ -23,6 +23,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { mcpApi } from "@/lib/api/mcp";
 import type { McpServerSpec, ToolInfo, ToolTestResult } from "@/types";
 
@@ -57,6 +64,7 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
   const [result, setResult] = useState<ToolTestResult | null>(null);
   const [showSchema, setShowSchema] = useState(false);
   const [showOptionalParams, setShowOptionalParams] = useState(false);
+  const [showAllOptional, setShowAllOptional] = useState(false);
 
   useEffect(() => {
     if (isOpen && tool) {
@@ -210,6 +218,7 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
     setResult(null);
     setShowSchema(false);
     setShowOptionalParams(false);
+    setShowAllOptional(false);
     onClose();
   };
 
@@ -259,8 +268,8 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
           value={param.value}
           onChange={(e) => handleParameterChange(index, e.target.value)}
           disabled={executing}
-          rows={4}
-          className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          rows={3}
+          className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y"
         />
       );
     }
@@ -274,40 +283,53 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent
         zIndex="top"
-        className="max-w-3xl max-h-[90vh] overflow-y-auto"
+        className="max-w-3xl max-h-[85vh] flex flex-col p-0"
       >
-        <DialogHeader>
+        <DialogHeader className="flex-shrink-0 border-b border-border-default px-6 py-4">
           <DialogTitle className="flex items-center gap-2">
             <Play className="w-5 h-5 text-primary" />
             {t("mcp.toolTest.title", { defaultValue: "Test Tool" })}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-6">
           {/* Tool Selector */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">
               {t("mcp.toolTest.selectTool", { defaultValue: "Select Tool" })}
             </label>
-            <select
-              id="tool-select"
+            <Select
               value={selectedTool?.name || ""}
-              onChange={(e) => handleToolChange(e.target.value)}
+              onValueChange={handleToolChange}
               disabled={executing}
-              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {tools.map((t) => (
-                <option key={t.name} value={t.name}>
-                  {t.name}
-                  {t.description ? ` - ${t.description}` : ""}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full">
+                <SelectValue
+                  placeholder={t("mcp.toolTest.selectTool", {
+                    defaultValue: "Select Tool",
+                  })}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {tools.map((t) => (
+                  <SelectItem key={t.name} value={t.name}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{t.name}</span>
+                      {t.description && (
+                        <span className="text-xs text-muted-foreground">
+                          {t.description}
+                        </span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Tool Description */}
           {selectedTool?.description && (
-            <div className="glass rounded-xl p-4 border border-white/10">
+            <div className="glass rounded-lg p-4 border border-white/10">
               <div className="flex items-start gap-2">
                 <Code2 className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
                 <p className="text-sm text-muted-foreground leading-relaxed">
@@ -319,7 +341,7 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
 
           {/* Schema Toggle */}
           {selectedTool?.input_schema && (
-            <div>
+            <div className="space-y-2">
               <button
                 type="button"
                 onClick={() => setShowSchema(!showSchema)}
@@ -336,7 +358,7 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
               </button>
 
               {showSchema && (
-                <div className="mt-2 glass rounded-lg p-4 border border-white/10">
+                <div className="glass rounded-lg p-4 border border-white/10">
                   <pre className="text-xs font-mono overflow-x-auto text-muted-foreground">
                     {JSON.stringify(selectedTool.input_schema, null, 2)}
                   </pre>
@@ -345,19 +367,26 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
             </div>
           )}
 
-          {/* Parameters Form */}
           {parameters.length > 0 && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between border-b border-border-default pb-3">
                 <label className="block text-sm font-medium text-foreground">
                   {t("mcp.toolTest.parameters", { defaultValue: "Parameters" })}
                 </label>
-                <span className="text-xs text-muted-foreground">
-                  {parameters.filter((p) => p.required).length}{" "}
-                  {t("mcp.toolTest.required", { defaultValue: "required" })},{" "}
-                  {parameters.filter((p) => !p.required).length}{" "}
-                  {t("mcp.toolTest.optional", { defaultValue: "optional" })}
-                </span>
+                <div className="flex gap-3 text-xs">
+                  <span className="text-muted-foreground">
+                    <span className="text-red-500 font-medium">
+                      {parameters.filter((p) => p.required).length}
+                    </span>{" "}
+                    {t("mcp.toolTest.required", { defaultValue: "required" })}
+                  </span>
+                  <span className="text-muted-foreground">
+                    <span className="text-blue-500 font-medium">
+                      {parameters.filter((p) => !p.required).length}
+                    </span>{" "}
+                    {t("mcp.toolTest.optional", { defaultValue: "optional" })}
+                  </span>
+                </div>
               </div>
 
               {/* Required Parameters */}
@@ -374,7 +403,10 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
                         (p) => p.name === param.name,
                       );
                       return (
-                        <div key={param.name} className="space-y-2">
+                        <div
+                          key={param.name}
+                          className="rounded-lg border border-border-default bg-card p-3 space-y-2"
+                        >
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                               <span className="text-red-500">*</span>
@@ -384,7 +416,7 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
                               >
                                 {param.name}
                               </label>
-                              <span className="text-xs text-muted-foreground flex-shrink-0">
+                              <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary flex-shrink-0">
                                 {param.type}
                               </span>
                             </div>
@@ -415,12 +447,15 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowOptionalParams(!showOptionalParams)}
-                    className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full"
+                    className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full group"
                   >
                     {showOptionalParams ? (
-                      <ChevronDown size={16} />
+                      <ChevronDown size={16} className="transition-transform" />
                     ) : (
-                      <ChevronRight size={16} />
+                      <ChevronRight
+                        size={16}
+                        className="transition-transform"
+                      />
                     )}
                     {t("mcp.toolTest.optional", { defaultValue: "Optional" })}
                     <span className="text-xs text-muted-foreground">
@@ -429,16 +464,19 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
                   </button>
 
                   {showOptionalParams && (
-                    <div className="space-y-3">
+                    <div className="space-y-3 animate-in fade-in-0 slide-in-from-top-2 duration-200">
                       {parameters
                         .filter((p) => !p.required)
-                        .slice(0, 5)
+                        .slice(0, showAllOptional ? undefined : 5)
                         .map((param) => {
                           const index = parameters.findIndex(
                             (p) => p.name === param.name,
                           );
                           return (
-                            <div key={param.name} className="space-y-2">
+                            <div
+                              key={param.name}
+                              className="rounded-lg border border-border-default bg-card p-3 space-y-2"
+                            >
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 flex-1 min-w-0">
                                   <label
@@ -447,7 +485,7 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
                                   >
                                     {param.name}
                                   </label>
-                                  <span className="text-xs text-muted-foreground flex-shrink-0">
+                                  <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-[11px] font-medium text-blue-500 flex-shrink-0">
                                     {param.type}
                                   </span>
                                 </div>
@@ -471,10 +509,22 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
                         })}
                       {parameters.filter((p) => !p.required).length > 5 && (
                         <div className="text-center py-2">
-                          <span className="text-xs text-muted-foreground">
-                            +{parameters.filter((p) => !p.required).length - 5}{" "}
-                            more parameters
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setShowAllOptional(!showAllOptional)}
+                            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            {showAllOptional
+                              ? t("common.showLess", {
+                                  defaultValue: "Show less",
+                                })
+                              : `+${parameters.filter((p) => !p.required).length - 5} ${t(
+                                  "mcp.toolTest.moreParameters",
+                                  {
+                                    defaultValue: "more parameters",
+                                  },
+                                )}`}
+                          </button>
                         </div>
                       )}
                     </div>
@@ -486,7 +536,7 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
 
           {/* No Parameters */}
           {parameters.length === 0 && selectedTool?.input_schema && (
-            <div className="glass rounded-xl p-4 border border-white/10">
+            <div className="glass rounded-lg p-4 border border-white/10">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <AlertCircle size={16} />
                 {t("mcp.toolTest.noParameters", {
@@ -497,48 +547,53 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
             </div>
           )}
 
+          {/* Loading Overlay */}
+          {executing && (
+            <div className="space-y-4 animate-pulse">
+              <div className="h-4 bg-muted rounded w-3/4" />
+              <div className="h-4 bg-muted rounded w-1/2" />
+              <div className="h-32 bg-muted rounded" />
+            </div>
+          )}
+
           {/* Execution Result */}
           {result && (
             <div
-              className={`glass rounded-xl p-4 border ${
+              className={`rounded-lg border p-4 space-y-3 animate-in fade-in-0 slide-in-from-bottom-2 duration-300 ${
                 result.success
-                  ? "border-green-200/20 dark:border-green-800/30"
-                  : "border-red-200/20 dark:border-red-800/30"
+                  ? "border-green-500/20 bg-green-500/5"
+                  : "border-red-500/20 bg-red-500/5"
               }`}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3 flex-1">
-                  {result.success ? (
-                    <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
-                  ) : (
-                    <XCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium mb-2">{result.message}</p>
-                    {result.details && (
-                      <div className="relative">
-                        <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono break-all bg-background/50 p-3 rounded border border-border">
-                          {result.details}
-                        </pre>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleCopyResult}
-                          className="absolute top-2 right-2 h-6 w-6 p-0 hover:bg-accent"
-                        >
-                          <Copy size={12} />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
+              <div className="flex items-start gap-3">
+                {result.success ? (
+                  <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                ) : (
+                  <XCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                )}
+                <p className="font-medium text-sm">{result.message}</p>
               </div>
+              {result.details && (
+                <div className="relative group">
+                  <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono break-all bg-background/80 p-3 rounded border border-border">
+                    {result.details}
+                  </pre>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCopyResult}
+                    className="absolute top-2 right-2 h-6 w-6 p-0 hover:bg-accent opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Copy size={12} />
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0 border-t border-border-default px-6 py-4 gap-2 sm:justify-end">
           <Button type="button" variant="outline" onClick={handleClose}>
             {t("common.close")}
           </Button>

@@ -2,7 +2,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { proxyApi } from "@/lib/api/proxy";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import type { GlobalProxyConfig, AppProxyConfig } from "@/types/proxy";
+import type {
+  GlobalProxyConfig,
+  AppProxyConfig,
+  ProxyTakeoverStatus,
+} from "@/types/proxy";
 
 // ========== 代理服务器状态 Hooks ==========
 
@@ -93,9 +97,27 @@ export function useSetProxyTakeoverForApp() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ appType, enabled }: { appType: string; enabled: boolean }) =>
-      proxyApi.setProxyTakeoverForApp(appType, enabled),
-    onSuccess: () => {
+    mutationFn: ({
+      appType,
+      enabled,
+    }: {
+      appType: keyof ProxyTakeoverStatus;
+      enabled: boolean;
+    }) => proxyApi.setProxyTakeoverForApp(appType, enabled),
+    onSuccess: (_data, variables) => {
+      queryClient.setQueryData<ProxyTakeoverStatus>(
+        ["proxyTakeoverStatus"],
+        (prev) => {
+          const next: ProxyTakeoverStatus = {
+            claude: prev?.claude ?? false,
+            codex: prev?.codex ?? false,
+            gemini: prev?.gemini ?? false,
+            opencode: prev?.opencode ?? false,
+          };
+          next[variables.appType] = variables.enabled;
+          return next;
+        },
+      );
       queryClient.invalidateQueries({ queryKey: ["proxyTakeoverStatus"] });
       queryClient.invalidateQueries({ queryKey: ["liveTakeoverActive"] });
     },

@@ -4,7 +4,8 @@
 
 use super::{lock_conn, Database, SCHEMA_VERSION};
 use crate::error::AppError;
-use rusqlite::Connection;
+use chrono::Utc;
+use rusqlite::{Connection, OptionalExtension};
 
 impl Database {
     /// 创建所有数据库表
@@ -365,6 +366,11 @@ impl Database {
                         log::info!("迁移数据库从 v2 到 v3（Skills 统一管理架构）");
                         Self::migrate_v2_to_v3(conn)?;
                         Self::set_user_version(conn, 3)?;
+                    }
+                    3 => {
+                        log::info!("迁移数据库从 v3 到 v4（proxy_config 新增 OpenCode 接管支持）");
+                        Self::migrate_v3_to_v4(conn)?;
+                        Self::set_user_version(conn, 4)?;
                     }
                     _ => {
                         return Err(AppError::Database(format!(
@@ -885,6 +891,247 @@ impl Database {
              注意：旧的安装记录已清除，首次启动时将自动扫描文件系统重建数据。"
         );
 
+        Ok(())
+    }
+
+    fn migrate_v3_to_v4(conn: &Connection) -> Result<(), AppError> {
+        if !Self::table_exists(conn, "proxy_config")? {
+            return Ok(());
+        }
+
+        // 如果仍然是旧结构（无 app_type 列），交由更早的迁移逻辑处理
+        if !Self::has_column(conn, "proxy_config", "app_type")? {
+            log::info!("proxy_config 仍是旧结构，等待早期迁移处理");
+            return Ok(());
+        }
+
+        struct ProxyConfigRow {
+            app_type: String,
+            proxy_enabled: bool,
+            listen_address: String,
+            listen_port: i64,
+            enable_logging: bool,
+            enabled: bool,
+            auto_failover_enabled: bool,
+            max_retries: i64,
+            streaming_first_byte_timeout: i64,
+            streaming_idle_timeout: i64,
+            non_streaming_timeout: i64,
+            circuit_failure_threshold: i64,
+            circuit_success_threshold: i64,
+            circuit_timeout_seconds: i64,
+            circuit_error_rate_threshold: f64,
+            circuit_min_requests: i64,
+            created_at: String,
+            updated_at: String,
+        }
+
+        let mut stmt = conn.prepare(
+            "SELECT app_type, proxy_enabled, listen_address, listen_port, enable_logging,
+                    enabled, auto_failover_enabled, max_retries, streaming_first_byte_timeout,
+                    streaming_idle_timeout, non_streaming_timeout, circuit_failure_threshold,
+                    circuit_success_threshold, circuit_timeout_seconds,
+                    circuit_error_rate_threshold, circuit_min_requests,
+                    created_at, updated_at
+             FROM proxy_config",
+        )?;
+
+        let mut rows = Vec::new();
+        let mut has_opencode_row = false;
+        let mut supports_opencode_in_check = false;
+
+        // 检查表定义是否已经包含 opencode
+        if let Some(sql) = conn
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='proxy_config'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|e| AppError::Database(e.to_string()))?
+        {
+            supports_opencode_in_check = sql.contains("'opencode'");
+        }
+
+        let row_iter = stmt.query_map([], |row| {
+            Ok(ProxyConfigRow {
+                app_type: row.get(0)?,
+                proxy_enabled: row.get::<_, i32>(1)? != 0,
+                listen_address: row.get(2)?,
+                listen_port: row.get(3)?,
+                enable_logging: row.get::<_, i32>(4)? != 0,
+                enabled: row.get::<_, i32>(5)? != 0,
+                auto_failover_enabled: row.get::<_, i32>(6)? != 0,
+                max_retries: row.get(7)?,
+                streaming_first_byte_timeout: row.get(8)?,
+                streaming_idle_timeout: row.get(9)?,
+                non_streaming_timeout: row.get(10)?,
+                circuit_failure_threshold: row.get(11)?,
+                circuit_success_threshold: row.get(12)?,
+                circuit_timeout_seconds: row.get(13)?,
+                circuit_error_rate_threshold: row.get(14)?,
+                circuit_min_requests: row.get(15)?,
+                created_at: row.get(16)?,
+                updated_at: row.get(17)?,
+            })
+        })?;
+
+        for row in row_iter {
+            let row = row.map_err(|e| AppError::Database(e.to_string()))?;
+            if row.app_type == "opencode" {
+                has_opencode_row = true;
+            }
+            rows.push(row);
+        }
+
+        if has_opencode_row && supports_opencode_in_check {
+            // 已具备 opencode 支持，无需迁移
+            log::info!("proxy_config 已包含 OpenCode 行，跳过 v4 迁移");
+            return Ok(());
+        }
+
+        log::info!("正在重建 proxy_config 表以添加 OpenCode 接管支持…");
+
+        conn.execute("DROP TABLE IF EXISTS proxy_config_new", [])
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        conn.execute(
+            "CREATE TABLE proxy_config_new (
+                app_type TEXT PRIMARY KEY CHECK (app_type IN ('claude','codex','gemini','opencode')),
+                proxy_enabled INTEGER NOT NULL DEFAULT 0, listen_address TEXT NOT NULL DEFAULT '127.0.0.1',
+                listen_port INTEGER NOT NULL DEFAULT 15721, enable_logging INTEGER NOT NULL DEFAULT 1,
+                enabled INTEGER NOT NULL DEFAULT 0, auto_failover_enabled INTEGER NOT NULL DEFAULT 0,
+                max_retries INTEGER NOT NULL DEFAULT 3, streaming_first_byte_timeout INTEGER NOT NULL DEFAULT 60,
+                streaming_idle_timeout INTEGER NOT NULL DEFAULT 120, non_streaming_timeout INTEGER NOT NULL DEFAULT 600,
+                circuit_failure_threshold INTEGER NOT NULL DEFAULT 4, circuit_success_threshold INTEGER NOT NULL DEFAULT 2,
+                circuit_timeout_seconds INTEGER NOT NULL DEFAULT 60, circuit_error_rate_threshold REAL NOT NULL DEFAULT 0.6,
+                circuit_min_requests INTEGER NOT NULL DEFAULT 10,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("创建 proxy_config_new 失败: {e}")))?;
+
+        for row in &rows {
+            conn.execute(
+                "INSERT INTO proxy_config_new (
+                    app_type, proxy_enabled, listen_address, listen_port, enable_logging, enabled,
+                    auto_failover_enabled, max_retries, streaming_first_byte_timeout,
+                    streaming_idle_timeout, non_streaming_timeout, circuit_failure_threshold,
+                    circuit_success_threshold, circuit_timeout_seconds, circuit_error_rate_threshold,
+                    circuit_min_requests, created_at, updated_at
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
+                rusqlite::params![
+                    row.app_type,
+                    if row.proxy_enabled { 1 } else { 0 },
+                    row.listen_address,
+                    row.listen_port,
+                    if row.enable_logging { 1 } else { 0 },
+                    if row.enabled { 1 } else { 0 },
+                    if row.auto_failover_enabled { 1 } else { 0 },
+                    row.max_retries,
+                    row.streaming_first_byte_timeout,
+                    row.streaming_idle_timeout,
+                    row.non_streaming_timeout,
+                    row.circuit_failure_threshold,
+                    row.circuit_success_threshold,
+                    row.circuit_timeout_seconds,
+                    row.circuit_error_rate_threshold,
+                    row.circuit_min_requests,
+                    row.created_at,
+                    row.updated_at,
+                ],
+            )
+            .map_err(|e| AppError::Database(format!("写入 {0} 配置失败: {e}", row.app_type)))?;
+        }
+
+        if !has_opencode_row {
+            let template = rows
+                .iter()
+                .find(|row| row.app_type == "claude")
+                .or_else(|| rows.first());
+            let now = Utc::now().to_rfc3339();
+
+            let (
+                listen_address,
+                listen_port,
+                enable_logging,
+                proxy_enabled,
+                streaming_first_byte,
+                streaming_idle,
+                non_streaming,
+                cb_failure,
+                cb_success,
+                cb_timeout,
+                cb_rate,
+                cb_min_requests,
+                max_retries,
+            ) = match template {
+                Some(row) => (
+                    row.listen_address.clone(),
+                    row.listen_port,
+                    row.enable_logging,
+                    row.proxy_enabled,
+                    row.streaming_first_byte_timeout,
+                    row.streaming_idle_timeout,
+                    row.non_streaming_timeout,
+                    row.circuit_failure_threshold,
+                    row.circuit_success_threshold,
+                    row.circuit_timeout_seconds,
+                    row.circuit_error_rate_threshold,
+                    row.circuit_min_requests,
+                    row.max_retries,
+                ),
+                None => (
+                    "127.0.0.1".to_string(),
+                    15721,
+                    true,
+                    false,
+                    60,
+                    120,
+                    600,
+                    4,
+                    2,
+                    60,
+                    0.6,
+                    10,
+                    5,
+                ),
+            };
+
+            conn.execute(
+                "INSERT INTO proxy_config_new (
+                    app_type, proxy_enabled, listen_address, listen_port, enable_logging, enabled,
+                    auto_failover_enabled, max_retries, streaming_first_byte_timeout,
+                    streaming_idle_timeout, non_streaming_timeout, circuit_failure_threshold,
+                    circuit_success_threshold, circuit_timeout_seconds, circuit_error_rate_threshold,
+                    circuit_min_requests, created_at, updated_at
+                ) VALUES ('opencode', ?1, ?2, ?3, ?4, 0, 0, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?14)",
+                rusqlite::params![
+                    if proxy_enabled { 1 } else { 0 },
+                    listen_address,
+                    listen_port,
+                    if enable_logging { 1 } else { 0 },
+                    max_retries,
+                    streaming_first_byte,
+                    streaming_idle,
+                    non_streaming,
+                    cb_failure,
+                    cb_success,
+                    cb_timeout,
+                    cb_rate,
+                    cb_min_requests,
+                    now,
+                ],
+            )
+            .map_err(|e| AppError::Database(format!("插入 OpenCode 配置失败: {e}")))?;
+        }
+
+        conn.execute("DROP TABLE IF EXISTS proxy_config", [])
+            .map_err(|e| AppError::Database(format!("删除旧 proxy_config 失败: {e}")))?;
+        conn.execute("ALTER TABLE proxy_config_new RENAME TO proxy_config", [])
+            .map_err(|e| AppError::Database(format!("重命名 proxy_config_new 失败: {e}")))?;
+
+        log::info!("proxy_config 表已重建，OpenCode 接管已启用");
         Ok(())
     }
 

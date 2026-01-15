@@ -93,7 +93,13 @@ export function useProxyStatus() {
 
   // 按应用开启/关闭接管
   const setTakeoverForAppMutation = useMutation({
-    mutationFn: ({ appType, enabled }: { appType: string; enabled: boolean }) =>
+    mutationFn: ({
+      appType,
+      enabled,
+    }: {
+      appType: keyof ProxyTakeoverStatus;
+      enabled: boolean;
+    }) =>
       invoke("set_proxy_takeover_for_app", { appType, enabled }),
     onSuccess: (_data, variables) => {
       const appLabel =
@@ -114,6 +120,20 @@ export function useProxyStatus() {
               defaultValue: `已恢复 ${appLabel} 配置`,
             }),
         { closeButton: true },
+      );
+
+      queryClient.setQueryData<ProxyTakeoverStatus>(
+        ["proxyTakeoverStatus"],
+        (prev) => {
+          const next: ProxyTakeoverStatus = {
+            claude: prev?.claude ?? false,
+            codex: prev?.codex ?? false,
+            gemini: prev?.gemini ?? false,
+            opencode: prev?.opencode ?? false,
+          };
+          next[variables.appType] = variables.enabled;
+          return next;
+        },
       );
 
       queryClient.invalidateQueries({ queryKey: ["proxyStatus"] });

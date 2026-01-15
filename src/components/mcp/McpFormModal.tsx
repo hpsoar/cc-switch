@@ -15,11 +15,13 @@ import {
   FileJson,
   MessageSquare,
   ChevronRight,
+  Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import JsonEditor from "@/components/JsonEditor";
+import ToolTestModal from "./ToolTestModal";
 import type { AppId } from "@/lib/api/types";
 import { McpServer, McpServerSpec, McpTestResult } from "@/types";
 import McpWizardModal from "./McpWizardModal";
@@ -136,6 +138,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [idError, setIdError] = useState("");
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [toolTestModalOpen, setToolTestModalOpen] = useState(false);
+  const [selectedToolForTest, setSelectedToolForTest] = useState<any>(null);
 
   useEffect(() => {
     setIsDarkMode(document.documentElement.classList.contains("dark"));
@@ -360,9 +364,14 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
       }
     }
 
-    if (serverSpec?.type === "stdio" && !serverSpec?.command?.trim()) {
-      toast.error(t("mcp.error.commandRequired"), { duration: 3000 });
-      return;
+    if (serverSpec?.type === "stdio") {
+      const cmd = Array.isArray(serverSpec.command)
+        ? serverSpec.command[0]
+        : serverSpec.command;
+      if (!cmd?.trim()) {
+        toast.error(t("mcp.error.commandRequired"), { duration: 3000 });
+        return;
+      }
     }
     if (
       (serverSpec?.type === "http" || serverSpec?.type === "sse") &&
@@ -486,6 +495,11 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
       ...prev,
       [section]: !prev[section],
     }));
+  };
+
+  const handleTestTool = (tool: any) => {
+    setSelectedToolForTest(tool);
+    setToolTestModalOpen(true);
   };
 
   const getFormTitle = () => {
@@ -888,14 +902,30 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                             key={index}
                             className="p-3 rounded border bg-card hover:bg-muted/50 transition-colors"
                           >
-                            <div className="font-mono font-medium text-sm">
-                              {tool.name}
-                            </div>
-                            {tool.description && (
-                              <div className="mt-1 text-xs text-muted-foreground">
-                                {tool.description}
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-mono font-medium text-sm">
+                                  {tool.name}
+                                </div>
+                                {tool.description && (
+                                  <div className="mt-1 text-xs text-muted-foreground">
+                                    {tool.description}
+                                  </div>
+                                )}
                               </div>
-                            )}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleTestTool(tool)}
+                                className="flex-shrink-0"
+                              >
+                                <Play size={14} className="mr-1" />
+                                {t("mcp.toolTest.test", {
+                                  defaultValue: "Test",
+                                })}
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -995,13 +1025,20 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         </div>
       </FullScreenPanel>
 
-      {/* Wizard Modal */}
       <McpWizardModal
         isOpen={isWizardOpen}
         onClose={() => setIsWizardOpen(false)}
         onApply={handleWizardApply}
         initialTitle={formId}
         initialServer={wizardInitialSpec}
+      />
+
+      <ToolTestModal
+        isOpen={toolTestModalOpen}
+        onClose={() => setToolTestModalOpen(false)}
+        serverSpec={wizardInitialSpec || null}
+        tool={selectedToolForTest}
+        tools={testResult?.tools || []}
       />
     </>
   );

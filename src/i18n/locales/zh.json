@@ -793,7 +793,22 @@
     "tools": "工具",
     "resources": "资源",
     "prompts": "提示词",
-    "noTestResults": "暂无测试结果"
+    "noTestResults": "暂无测试结果",
+    "toolTest": {
+      "title": "测试工具",
+      "selectTool": "选择工具",
+      "viewSchema": "查看输入模式",
+      "parameters": "参数",
+      "required": "必填",
+      "optional": "可选",
+      "default": "默认值",
+      "noParameters": "此工具没有参数或使用空模式。",
+      "test": "测试",
+      "execute": "执行",
+      "executing": "执行中...",
+      "executionFailed": "工具执行失败",
+      "missingRequired": "缺少必需参数: {{names}}"
+    }
   },
   "prompts": {
     "manage": "提示词",

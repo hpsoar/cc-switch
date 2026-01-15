@@ -5,11 +5,9 @@ import { configApi } from "@/lib/api";
 const DEFAULT_OPENCODE_COMMON_CONFIG_SNIPPET = "{}";
 
 // OpenCode通用配置中禁止包含的字段（这些字段应该在每个provider中单独配置）
-const OPENCODE_COMMON_CONFIG_FORBIDDEN_KEYS = [
-  "baseURL",
-  "apiKey",
-] as const;
-type OpenCodeForbiddenKey = (typeof OPENCODE_COMMON_CONFIG_FORBIDDEN_KEYS)[number];
+const OPENCODE_COMMON_CONFIG_FORBIDDEN_KEYS = ["baseURL", "apiKey"] as const;
+type OpenCodeForbiddenKey =
+  (typeof OPENCODE_COMMON_CONFIG_FORBIDDEN_KEYS)[number];
 
 interface UseOpenCodeCommonConfigProps {
   providerConfigValue: string;
@@ -73,16 +71,28 @@ export function useOpenCodeCommonConfig({
       try {
         parsed = JSON.parse(trimmed);
       } catch {
-        return { options: {}, error: t("opencodeConfig.invalidJsonFormat", { defaultValue: "无效的 JSON 格式" }) };
+        return {
+          options: {},
+          error: t("opencodeConfig.invalidJsonFormat", {
+            defaultValue: "无效的 JSON 格式",
+          }),
+        };
       }
 
       if (!isPlainObject(parsed)) {
-        return { options: {}, error: t("opencodeConfig.invalidJsonFormat", { defaultValue: "无效的 JSON 格式" }) };
+        return {
+          options: {},
+          error: t("opencodeConfig.invalidJsonFormat", {
+            defaultValue: "无效的 JSON 格式",
+          }),
+        };
       }
 
       const keys = Object.keys(parsed);
       const forbiddenKeys = keys.filter((key) =>
-        OPENCODE_COMMON_CONFIG_FORBIDDEN_KEYS.includes(key as OpenCodeForbiddenKey),
+        OPENCODE_COMMON_CONFIG_FORBIDDEN_KEYS.includes(
+          key as OpenCodeForbiddenKey,
+        ),
       );
       if (forbiddenKeys.length > 0) {
         return {
@@ -100,7 +110,10 @@ export function useOpenCodeCommonConfig({
   );
 
   const hasProviderCommonConfigSnippet = useCallback(
-    (providerOptions: Record<string, unknown>, snippetOptions: Record<string, unknown>) => {
+    (
+      providerOptions: Record<string, unknown>,
+      snippetOptions: Record<string, unknown>,
+    ) => {
       const entries = Object.entries(snippetOptions);
       if (entries.length === 0) return false;
       return entries.every(([key, value]) => {
@@ -112,7 +125,10 @@ export function useOpenCodeCommonConfig({
   );
 
   const applySnippetToProvider = useCallback(
-    (providerOptions: Record<string, unknown>, snippetOptions: Record<string, unknown>) => {
+    (
+      providerOptions: Record<string, unknown>,
+      snippetOptions: Record<string, unknown>,
+    ) => {
       const updated = { ...providerOptions };
       for (const [key, value] of Object.entries(snippetOptions)) {
         updated[key] = value;
@@ -123,7 +139,10 @@ export function useOpenCodeCommonConfig({
   );
 
   const removeSnippetFromProvider = useCallback(
-    (providerOptions: Record<string, unknown>, snippetOptions: Record<string, unknown>) => {
+    (
+      providerOptions: Record<string, unknown>,
+      snippetOptions: Record<string, unknown>,
+    ) => {
       const updated = { ...providerOptions };
       for (const [key, value] of Object.entries(snippetOptions)) {
         if (JSON.stringify(updated[key]) === JSON.stringify(value)) {
@@ -171,11 +190,16 @@ export function useOpenCodeCommonConfig({
         const providerConfig = initialData.settingsConfig;
         if (!isPlainObject(providerConfig)) return;
 
-        const options = isPlainObject(providerConfig.options) ? providerConfig.options : {};
+        const options = isPlainObject(providerConfig.options)
+          ? providerConfig.options
+          : {};
         const parsed = parseSnippetOptions(commonConfigSnippet);
         if (parsed.error) return;
 
-        const hasCommon = hasProviderCommonConfigSnippet(options, parsed.options);
+        const hasCommon = hasProviderCommonConfigSnippet(
+          options,
+          parsed.options,
+        );
         setUseCommonConfig(hasCommon);
       } catch {
         // ignore parse error
@@ -203,7 +227,9 @@ export function useOpenCodeCommonConfig({
 
       try {
         const providerConfig = JSON.parse(providerConfigValue);
-        const currentOptions = isPlainObject(providerConfig.options) ? providerConfig.options : {};
+        const currentOptions = isPlainObject(providerConfig.options)
+          ? providerConfig.options
+          : {};
         const merged = applySnippetToProvider(currentOptions, parsed.options);
         const updated = { ...providerConfig, options: merged };
 
@@ -236,14 +262,20 @@ export function useOpenCodeCommonConfig({
         return;
       }
       if (Object.keys(parsed.options).length === 0) {
-        setCommonConfigError(t("opencodeConfig.noCommonConfigToApply", { defaultValue: "没有可应用的通用配置" }));
+        setCommonConfigError(
+          t("opencodeConfig.noCommonConfigToApply", {
+            defaultValue: "没有可应用的通用配置",
+          }),
+        );
         setUseCommonConfig(false);
         return;
       }
 
       try {
         const providerConfig = JSON.parse(providerConfigValue);
-        const currentOptions = isPlainObject(providerConfig.options) ? providerConfig.options : {};
+        const currentOptions = isPlainObject(providerConfig.options)
+          ? providerConfig.options
+          : {};
 
         const updatedOptions = checked
           ? applySnippetToProvider(currentOptions, parsed.options)
@@ -260,7 +292,11 @@ export function useOpenCodeCommonConfig({
           isUpdatingFromCommonConfig.current = false;
         }, 0);
       } catch (error) {
-        setCommonConfigError(t("opencodeConfig.failedToUpdateConfig", { defaultValue: "更新配置失败" }));
+        setCommonConfigError(
+          t("opencodeConfig.failedToUpdateConfig", {
+            defaultValue: "更新配置失败",
+          }),
+        );
       }
     },
     [
@@ -285,7 +321,10 @@ export function useOpenCodeCommonConfig({
         configApi.setCommonConfigSnippet("opencode", "").catch((error) => {
           console.error("保存 OpenCode 通用配置失败:", error);
           setCommonConfigError(
-            t("opencodeConfig.saveFailed", { error: String(error), defaultValue: "保存失败" }),
+            t("opencodeConfig.saveFailed", {
+              error: String(error),
+              defaultValue: "保存失败",
+            }),
           );
         });
 
@@ -294,8 +333,13 @@ export function useOpenCodeCommonConfig({
           if (!parsed.error && Object.keys(parsed.options).length > 0) {
             try {
               const providerConfig = JSON.parse(providerConfigValue);
-              const currentOptions = isPlainObject(providerConfig.options) ? providerConfig.options : {};
-              const updatedOptions = removeSnippetFromProvider(currentOptions, parsed.options);
+              const currentOptions = isPlainObject(providerConfig.options)
+                ? providerConfig.options
+                : {};
+              const updatedOptions = removeSnippetFromProvider(
+                currentOptions,
+                parsed.options,
+              );
               const updated = { ...providerConfig, options: updatedOptions };
               onProviderConfigChange(JSON.stringify(updated, null, 2));
             } catch {
@@ -317,7 +361,10 @@ export function useOpenCodeCommonConfig({
       configApi.setCommonConfigSnippet("opencode", value).catch((error) => {
         console.error("保存 OpenCode 通用配置失败:", error);
         setCommonConfigError(
-          t("opencodeConfig.saveFailed", { error: String(error), defaultValue: "保存失败" }),
+          t("opencodeConfig.saveFailed", {
+            error: String(error),
+            defaultValue: "保存失败",
+          }),
         );
       });
 
@@ -329,7 +376,9 @@ export function useOpenCodeCommonConfig({
 
         try {
           const providerConfig = JSON.parse(providerConfigValue);
-          const currentOptions = isPlainObject(providerConfig.options) ? providerConfig.options : {};
+          const currentOptions = isPlainObject(providerConfig.options)
+            ? providerConfig.options
+            : {};
 
           const withoutOld =
             Object.keys(prevOptions).length > 0
@@ -377,8 +426,12 @@ export function useOpenCodeCommonConfig({
       const providerConfig = JSON.parse(providerConfigValue);
       if (!isPlainObject(providerConfig)) return;
 
-      const options = isPlainObject(providerConfig.options) ? providerConfig.options : {};
-      setUseCommonConfig(hasProviderCommonConfigSnippet(options, parsed.options));
+      const options = isPlainObject(providerConfig.options)
+        ? providerConfig.options
+        : {};
+      setUseCommonConfig(
+        hasProviderCommonConfigSnippet(options, parsed.options),
+      );
     } catch {
       // ignore
     }
@@ -401,13 +454,21 @@ export function useOpenCodeCommonConfig({
       });
 
       if (!extracted || extracted === "{}") {
-        setCommonConfigError(t("opencodeConfig.extractNoCommonConfig", { defaultValue: "没有可提取的通用配置" }));
+        setCommonConfigError(
+          t("opencodeConfig.extractNoCommonConfig", {
+            defaultValue: "没有可提取的通用配置",
+          }),
+        );
         return;
       }
 
       const parsed = parseSnippetOptions(extracted);
       if (parsed.error) {
-        setCommonConfigError(t("opencodeConfig.extractedConfigInvalid", { defaultValue: "提取的配置无效" }));
+        setCommonConfigError(
+          t("opencodeConfig.extractedConfigInvalid", {
+            defaultValue: "提取的配置无效",
+          }),
+        );
         return;
       }
 
@@ -416,7 +477,10 @@ export function useOpenCodeCommonConfig({
     } catch (error) {
       console.error("提取 OpenCode 通用配置失败:", error);
       setCommonConfigError(
-        t("opencodeConfig.extractFailed", { error: String(error), defaultValue: "提取失败" }),
+        t("opencodeConfig.extractFailed", {
+          error: String(error),
+          defaultValue: "提取失败",
+        }),
       );
     } finally {
       setIsExtracting(false);

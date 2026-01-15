@@ -793,7 +793,22 @@
     "tools": "Tools",
     "resources": "Resources",
     "prompts": "Prompts",
-    "noTestResults": "No test results available"
+    "noTestResults": "No test results available",
+    "toolTest": {
+      "title": "Test Tool",
+      "selectTool": "Select Tool",
+      "viewSchema": "View Input Schema",
+      "parameters": "Parameters",
+      "required": "Required",
+      "optional": "Optional",
+      "default": "Default",
+      "noParameters": "This tool has no parameters or uses an empty schema.",
+      "test": "Test",
+      "execute": "Execute",
+      "executing": "Executing...",
+      "executionFailed": "Tool execution failed",
+      "missingRequired": "Missing required parameters: {{names}}"
+    }
   },
   "prompts": {
     "manage": "Prompts",

@@ -5,6 +5,11 @@ export type ProviderCategory =
   | "third_party" // 第三方供应商
   | "custom"; // 自定义
 
+export interface ProviderMeta {
+  description?: string;
+  capabilities?: string[];
+}
+
 export interface Provider {
   id: string;
   name: string;
@@ -131,3 +136,67 @@ export interface UniversalProvider {
 
 // 统一供应商映射（id -> UniversalProvider）
 export type UniversalProvidersMap = Record<string, UniversalProvider>;
+
+export interface McpServerSpec {
+  type?: "stdio" | "http" | "sse";
+  command?: string | string[];
+  args?: string[];
+  env?: Record<string, string>;
+  cwd?: string;
+  url?: string;
+  headers?: Record<string, string>;
+}
+
+export interface McpServer {
+  id: string;
+  name: string;
+  server: McpServerSpec;
+  description?: string;
+  tags?: string[];
+  homepage?: string;
+  docs?: string;
+  apps?: {
+    claude: boolean;
+    codex: boolean;
+    gemini: boolean;
+    opencode: boolean;
+  };
+}
+
+export type McpServersMap = Record<string, McpServer>;
+
+export interface McpStatus {
+  enabled: boolean;
+  configPath?: string;
+}
+
+export interface McpConfigResponse {
+  servers: Record<string, McpServer>;
+}
+
+export interface McpTestResult {
+  success: boolean;
+  message: string;
+  details?: string;
+  server_info?: {
+    name: string;
+    version: string;
+    protocol_version: string;
+  };
+  tools?: ToolInfo[];
+  resources?: Array<{
+    uri: string;
+    name?: string;
+    description?: string;
+  }>;
+  prompts?: Array<{
+    name: string;
+    description?: string;
+  }>;
+}
+
+export interface ToolInfo {
+  name: string;
+  description?: string;
+  input_schema?: any;
+}

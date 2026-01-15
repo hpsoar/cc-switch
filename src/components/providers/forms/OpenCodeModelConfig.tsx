@@ -158,7 +158,10 @@ export function OpenCodeModelConfig({
                               const newConfig: ModelConfig = { ...config };
 
                               // If at least one value is provided, keep limit with defaults
-                              if (newContext !== undefined || existingOutput !== undefined) {
+                              if (
+                                newContext !== undefined ||
+                                existingOutput !== undefined
+                              ) {
                                 newConfig.limit = {
                                   context: newContext ?? 128000,
                                   output: existingOutput ?? 4096,
@@ -197,7 +200,10 @@ export function OpenCodeModelConfig({
                               const newConfig: ModelConfig = { ...config };
 
                               // If at least one value is provided, keep limit with defaults
-                              if (existingContext !== undefined || newOutput !== undefined) {
+                              if (
+                                existingContext !== undefined ||
+                                newOutput !== undefined
+                              ) {
                                 newConfig.limit = {
                                   context: existingContext ?? 128000,
                                   output: newOutput ?? 4096,

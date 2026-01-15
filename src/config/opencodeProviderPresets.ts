@@ -320,7 +320,8 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
   {
     name: "DouBao",
     websiteUrl: "https://www.volcengine.com/product/doubao",
-    apiKeyUrl: "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey",
+    apiKeyUrl:
+      "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey",
     settingsConfig: {
       npm: "@ai-sdk/openai-compatible",
       name: "DouBao",
@@ -529,8 +530,10 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
   },
   {
     name: "Azure OpenAI",
-    websiteUrl: "https://azure.microsoft.com/en-us/products/ai-services/openai-service",
-    apiKeyUrl: "https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI",
+    websiteUrl:
+      "https://azure.microsoft.com/en-us/products/ai-services/openai-service",
+    apiKeyUrl:
+      "https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI",
     settingsConfig: {
       npm: "@ai-sdk/azure",
       name: "Azure OpenAI",

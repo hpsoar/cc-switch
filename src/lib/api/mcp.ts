@@ -6,6 +6,7 @@ import type {
   McpServersMap,
   McpStatus,
   McpTestResult,
+  ToolTestResult,
 } from "@/types";
 import type { AppId } from "./types";
 
@@ -125,16 +126,22 @@ export const mcpApi = {
     return await invoke("toggle_mcp_app", { serverId, app, enabled });
   },
 
-  /**
-   * 测试 MCP 服务器连接
-   */
   async testServer(spec: McpServerSpec): Promise<McpTestResult> {
     return await invoke("test_mcp_server", { spec });
   },
 
-  /**
-   * 从所有应用导入 MCP 服务器
-   */
+  async testTool(
+    spec: McpServerSpec,
+    toolName: string,
+    toolArgs: Record<string, any>,
+  ): Promise<ToolTestResult> {
+    return await invoke("test_mcp_tool", {
+      spec,
+      toolName,
+      toolArgs,
+    });
+  },
+
   async importFromApps(): Promise<number> {
     return await invoke("import_mcp_from_apps");
   },

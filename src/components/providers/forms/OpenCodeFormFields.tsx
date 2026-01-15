@@ -226,7 +226,9 @@ export function OpenCodeFormFields({
               <input
                 type="text"
                 value={entry.value}
-                onChange={(e) => handleHeaderChange(entry.key, entry.key, e.target.value)}
+                onChange={(e) =>
+                  handleHeaderChange(entry.key, entry.key, e.target.value)
+                }
                 className="flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 placeholder="value"
               />

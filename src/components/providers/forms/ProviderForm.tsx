@@ -600,7 +600,10 @@ export function ProviderForm({
       const currentName = form.getValues("name");
       // 只在初始化或JSON编辑器直接修改时更新name字段
       // 避免与name字段的onBlur/onChange冲突
-      if (!currentName || (currentName !== parsed.name && document.activeElement?.id !== 'name')) {
+      if (
+        !currentName ||
+        (currentName !== parsed.name && document.activeElement?.id !== "name")
+      ) {
         form.setValue("name", parsed.name, { shouldValidate: false });
       }
     }
@@ -1284,7 +1287,9 @@ export function ProviderForm({
               useCommonConfig={useOpenCodeCommonConfigFlag}
               onCommonConfigToggle={handleOpenCodeCommonConfigToggle}
               commonConfigSnippet={opencodeCommonConfigSnippet}
-              onCommonConfigSnippetChange={handleOpenCodeCommonConfigSnippetChange}
+              onCommonConfigSnippetChange={
+                handleOpenCodeCommonConfigSnippetChange
+              }
               commonConfigError={opencodeCommonConfigError}
               onExtract={handleOpenCodeExtract}
               isExtracting={isOpenCodeExtracting}

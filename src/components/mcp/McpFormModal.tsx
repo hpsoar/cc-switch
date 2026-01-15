@@ -126,7 +126,6 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<McpTestResult | null>(null);
-  const [showTestResults, setShowTestResults] = useState(false);
   const [expandedTestSections, setExpandedTestSections] = useState<
     Record<string, boolean>
   >({
@@ -467,7 +466,6 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
     }
 
     setTesting(true);
-    setShowTestResults(true);
 
     try {
       const result = await mcpApi.testServer(serverSpec);
@@ -502,20 +500,6 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         onClose={onClose}
         footer={
           <div className="flex gap-3">
-            <Button
-              type="button"
-              onClick={handleTest}
-              disabled={testing || saving || !formConfig.trim()}
-              variant="outline"
-              className="disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {testing ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <TestTube2 size={16} />
-              )}
-              {testing ? t("mcp.testing") : t("mcp.test")}
-            </Button>
             <Button
               type="button"
               onClick={handleSubmit}
@@ -793,216 +777,221 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
             </div>
           </div>
 
-          {/* 测试结果展示模块 */}
-          {showTestResults && (
-            <div className="glass rounded-xl p-6 border border-white/10">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-foreground">
-                  {t("mcp.testResults")}
-                </h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowTestResults(false)}
-                >
-                  {t("common.close")}
-                </Button>
-              </div>
+          <div className="glass rounded-xl p-6 border border-white/10">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-foreground">
+                {t("mcp.testTitle")}
+              </h3>
+              <Button
+                type="button"
+                onClick={handleTest}
+                disabled={testing || saving || !formConfig.trim()}
+                variant="outline"
+                size="sm"
+                className="disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {testing ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <TestTube2 size={16} />
+                )}
+                {testing ? t("mcp.testing") : t("mcp.test")}
+              </Button>
+            </div>
 
-              {testing ? (
-                <div className="flex flex-col items-center justify-center py-12 gap-4">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  <p className="text-sm text-muted-foreground">
-                    {t("mcp.testing")}
-                  </p>
-                </div>
-              ) : testResult ? (
-                <div className="space-y-4">
-                  {/* Status Section */}
-                  <div
-                    className={`p-4 rounded-lg border ${
-                      testResult.success
-                        ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
-                        : "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      {testResult.success ? (
-                        <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5" />
-                      ) : (
-                        <XCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
+            {testing ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-4">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">
+                  {t("mcp.testing")}
+                </p>
+              </div>
+            ) : testResult ? (
+              <div className="space-y-4">
+                {/* Status Section */}
+                <div
+                  className={`p-4 rounded-lg border ${
+                    testResult.success
+                      ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
+                      : "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    {testResult.success ? (
+                      <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
+                    )}
+                    <div className="flex-1">
+                      <p className="font-medium">{testResult.message}</p>
+                      {testResult.details && (
+                        <pre className="mt-2 text-xs text-muted-foreground whitespace-pre-wrap font-mono">
+                          {testResult.details}
+                        </pre>
                       )}
-                      <div className="flex-1">
-                        <p className="font-medium">{testResult.message}</p>
-                        {testResult.details && (
-                          <pre className="mt-2 text-xs text-muted-foreground whitespace-pre-wrap font-mono">
-                            {testResult.details}
-                          </pre>
-                        )}
-                      </div>
                     </div>
                   </div>
-
-                  {/* Server Info */}
-                  {testResult.server_info && (
-                    <div className="p-4 rounded-lg border bg-muted/50">
-                      <h4 className="font-medium mb-2">
-                        {t("mcp.serverInformation")}
-                      </h4>
-                      <dl className="grid grid-cols-2 gap-2 text-sm">
-                        <dt className="text-muted-foreground">
-                          {t("mcp.serverName")}:
-                        </dt>
-                        <dd className="font-mono">
-                          {testResult.server_info.name}
-                        </dd>
-                        <dt className="text-muted-foreground">
-                          {t("mcp.serverVersion")}:
-                        </dt>
-                        <dd className="font-mono">
-                          {testResult.server_info.version}
-                        </dd>
-                        <dt className="text-muted-foreground">
-                          {t("mcp.protocolVersion")}:
-                        </dt>
-                        <dd className="font-mono">
-                          {testResult.server_info.protocol_version}
-                        </dd>
-                      </dl>
-                    </div>
-                  )}
-
-                  {/* Tools Section */}
-                  {testResult.tools && testResult.tools.length > 0 && (
-                    <div className="border rounded-lg">
-                      <button
-                        onClick={() => toggleTestSection("tools")}
-                        className="w-full p-4 flex items-center justify-between hover:bg-muted/50 transition-colors"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Code2 className="w-4 h-4" />
-                          <h4 className="font-medium">
-                            {t("mcp.tools")} ({testResult.tools.length})
-                          </h4>
-                        </div>
-                        {expandedTestSections.tools ? (
-                          <ChevronDown className="w-4 h-4" />
-                        ) : (
-                          <ChevronRight className="w-4 h-4" />
-                        )}
-                      </button>
-                      {expandedTestSections.tools && (
-                        <div className="px-4 pb-4 space-y-2">
-                          {testResult.tools.map((tool, index) => (
-                            <div
-                              key={index}
-                              className="p-3 rounded border bg-card hover:bg-muted/50 transition-colors"
-                            >
-                              <div className="font-mono font-medium text-sm">
-                                {tool.name}
-                              </div>
-                              {tool.description && (
-                                <div className="mt-1 text-xs text-muted-foreground">
-                                  {tool.description}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Resources Section */}
-                  {testResult.resources && testResult.resources.length > 0 && (
-                    <div className="border rounded-lg">
-                      <button
-                        onClick={() => toggleTestSection("resources")}
-                        className="w-full p-4 flex items-center justify-between hover:bg-muted/50 transition-colors"
-                      >
-                        <div className="flex items-center gap-2">
-                          <FileJson className="w-4 h-4" />
-                          <h4 className="font-medium">
-                            {t("mcp.resources")} ({testResult.resources.length})
-                          </h4>
-                        </div>
-                        {expandedTestSections.resources ? (
-                          <ChevronDown className="w-4 h-4" />
-                        ) : (
-                          <ChevronRight className="w-4 h-4" />
-                        )}
-                      </button>
-                      {expandedTestSections.resources && (
-                        <div className="px-4 pb-4 space-y-2">
-                          {testResult.resources.map((resource, index) => (
-                            <div
-                              key={index}
-                              className="p-3 rounded border bg-card hover:bg-muted/50 transition-colors"
-                            >
-                              <div className="font-mono font-medium text-sm break-all">
-                                {resource.uri}
-                              </div>
-                              {resource.name && (
-                                <div className="mt-1 text-sm">
-                                  {resource.name}
-                                </div>
-                              )}
-                              {resource.description && (
-                                <div className="mt-1 text-xs text-muted-foreground">
-                                  {resource.description}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Prompts Section */}
-                  {testResult.prompts && testResult.prompts.length > 0 && (
-                    <div className="border rounded-lg">
-                      <button
-                        onClick={() => toggleTestSection("prompts")}
-                        className="w-full p-4 flex items-center justify-between hover:bg-muted/50 transition-colors"
-                      >
-                        <div className="flex items-center gap-2">
-                          <MessageSquare className="w-4 h-4" />
-                          <h4 className="font-medium">
-                            {t("mcp.prompts")} ({testResult.prompts.length})
-                          </h4>
-                        </div>
-                        {expandedTestSections.prompts ? (
-                          <ChevronDown className="w-4 h-4" />
-                        ) : (
-                          <ChevronRight className="w-4 h-4" />
-                        )}
-                      </button>
-                      {expandedTestSections.prompts && (
-                        <div className="px-4 pb-4 space-y-2">
-                          {testResult.prompts.map((prompt, index) => (
-                            <div
-                              key={index}
-                              className="p-3 rounded border bg-card hover:bg-muted/50 transition-colors"
-                            >
-                              <div className="font-mono font-medium text-sm">
-                                {prompt.name}
-                              </div>
-                              {prompt.description && (
-                                <div className="mt-1 text-xs text-muted-foreground">
-                                  {prompt.description}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
-              ) : null}
-            </div>
-          )}
+
+                {/* Server Info */}
+                {testResult.server_info && (
+                  <div className="p-4 rounded-lg border bg-muted/50">
+                    <h4 className="font-medium mb-2">
+                      {t("mcp.serverInformation")}
+                    </h4>
+                    <dl className="grid grid-cols-2 gap-2 text-sm">
+                      <dt className="text-muted-foreground">
+                        {t("mcp.serverName")}:
+                      </dt>
+                      <dd className="font-mono">
+                        {testResult.server_info.name}
+                      </dd>
+                      <dt className="text-muted-foreground">
+                        {t("mcp.serverVersion")}:
+                      </dt>
+                      <dd className="font-mono">
+                        {testResult.server_info.version}
+                      </dd>
+                      <dt className="text-muted-foreground">
+                        {t("mcp.protocolVersion")}:
+                      </dt>
+                      <dd className="font-mono">
+                        {testResult.server_info.protocol_version}
+                      </dd>
+                    </dl>
+                  </div>
+                )}
+
+                {/* Tools Section */}
+                {testResult.tools && testResult.tools.length > 0 && (
+                  <div className="border rounded-lg">
+                    <button
+                      onClick={() => toggleTestSection("tools")}
+                      className="w-full p-4 flex items-center justify-between hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Code2 className="w-4 h-4" />
+                        <h4 className="font-medium">
+                          {t("mcp.tools")} ({testResult.tools.length})
+                        </h4>
+                      </div>
+                      {expandedTestSections.tools ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )}
+                    </button>
+                    {expandedTestSections.tools && (
+                      <div className="px-4 pb-4 space-y-2">
+                        {testResult.tools.map((tool, index) => (
+                          <div
+                            key={index}
+                            className="p-3 rounded border bg-card hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="font-mono font-medium text-sm">
+                              {tool.name}
+                            </div>
+                            {tool.description && (
+                              <div className="mt-1 text-xs text-muted-foreground">
+                                {tool.description}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Resources Section */}
+                {testResult.resources && testResult.resources.length > 0 && (
+                  <div className="border rounded-lg">
+                    <button
+                      onClick={() => toggleTestSection("resources")}
+                      className="w-full p-4 flex items-center justify-between hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <FileJson className="w-4 h-4" />
+                        <h4 className="font-medium">
+                          {t("mcp.resources")} ({testResult.resources.length})
+                        </h4>
+                      </div>
+                      {expandedTestSections.resources ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )}
+                    </button>
+                    {expandedTestSections.resources && (
+                      <div className="px-4 pb-4 space-y-2">
+                        {testResult.resources.map((resource, index) => (
+                          <div
+                            key={index}
+                            className="p-3 rounded border bg-card hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="font-mono font-medium text-sm break-all">
+                              {resource.uri}
+                            </div>
+                            {resource.name && (
+                              <div className="mt-1 text-sm">
+                                {resource.name}
+                              </div>
+                            )}
+                            {resource.description && (
+                              <div className="mt-1 text-xs text-muted-foreground">
+                                {resource.description}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Prompts Section */}
+                {testResult.prompts && testResult.prompts.length > 0 && (
+                  <div className="border rounded-lg">
+                    <button
+                      onClick={() => toggleTestSection("prompts")}
+                      className="w-full p-4 flex items-center justify-between hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="w-4 h-4" />
+                        <h4 className="font-medium">
+                          {t("mcp.prompts")} ({testResult.prompts.length})
+                        </h4>
+                      </div>
+                      {expandedTestSections.prompts ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )}
+                    </button>
+                    {expandedTestSections.prompts && (
+                      <div className="px-4 pb-4 space-y-2">
+                        {testResult.prompts.map((prompt, index) => (
+                          <div
+                            key={index}
+                            className="p-3 rounded border bg-card hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="font-mono font-medium text-sm">
+                              {prompt.name}
+                            </div>
+                            {prompt.description && (
+                              <div className="mt-1 text-xs text-muted-foreground">
+                                {prompt.description}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
         </div>
       </FullScreenPanel>
 

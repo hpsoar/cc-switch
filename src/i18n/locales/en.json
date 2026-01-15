@@ -783,6 +783,7 @@
     },
     "test": "Test",
     "testing": "Testing...",
+    "testTitle": "Test MCP",
     "testResults": "MCP Test Results",
     "testDescription": "Connection test and capability list",
     "serverInformation": "Server Information",

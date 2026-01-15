@@ -783,6 +783,7 @@
     },
     "test": "测试",
     "testing": "测试中...",
+    "testTitle": "测试MCP",
     "testResults": "MCP 测试结果",
     "testDescription": "连通性测试和功能列表",
     "serverInformation": "服务器信息",

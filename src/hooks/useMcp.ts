@@ -42,6 +42,9 @@ export function useUpsertMcpServer() {
     mutationFn: (server: McpServer) => mcpApi.upsertUnifiedServer(server),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mcp", "all"] });
+      queryClient.invalidateQueries({
+        queryKey: ["mcp", "status", "opencode"],
+      });
     },
   });
 }
@@ -80,6 +83,9 @@ export function useDeleteMcpServer() {
     mutationFn: (id: string) => mcpApi.deleteUnifiedServer(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mcp", "all"] });
+      queryClient.invalidateQueries({
+        queryKey: ["mcp", "status", "opencode"],
+      });
     },
   });
 }
@@ -93,6 +99,9 @@ export function useImportMcpFromApps() {
     mutationFn: () => mcpApi.importFromApps(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mcp", "all"] });
+      queryClient.invalidateQueries({
+        queryKey: ["mcp", "status", "opencode"],
+      });
     },
   });
 }

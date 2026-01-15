@@ -315,6 +315,7 @@ const UnifiedMcpPanel = React.forwardRef<
           }
           existingIds={serversMap ? Object.keys(serversMap) : []}
           defaultFormat="json"
+          defaultEnabledApps={["claude", "codex", "gemini", "opencode"]}
           onSave={async () => {
             setIsFormOpen(false);
             setEditingId(null);

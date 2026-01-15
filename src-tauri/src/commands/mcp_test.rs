@@ -33,10 +33,11 @@ pub struct ServerInfo {
 }
 
 /// 工具信息
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ToolInfo {
     pub name: String,
     pub description: Option<String>,
+    pub input_schema: Option<Value>,
 }
 
 /// 资源信息
@@ -303,7 +304,12 @@ async fn test_stdio_server(
                                     .get("description")
                                     .and_then(|d| d.as_str())
                                     .map(String::from);
-                                Some(ToolInfo { name, description })
+                                let input_schema = item.get("inputSchema").cloned();
+                                Some(ToolInfo {
+                                    name,
+                                    description,
+                                    input_schema,
+                                })
                             })
                             .collect::<Vec<_>>()
                     });
@@ -432,7 +438,10 @@ async fn test_http_server(
     // Build headers
     let mut req_headers = reqwest::header::HeaderMap::new();
     req_headers.insert("Content-Type", "application/json".parse().unwrap());
-    req_headers.insert("Accept", "application/json, text/event-stream".parse().unwrap());
+    req_headers.insert(
+        "Accept",
+        "application/json, text/event-stream".parse().unwrap(),
+    );
 
     if let Some(hdrs) = &headers {
         debug!("Adding custom headers: {:?}", hdrs);
@@ -587,22 +596,20 @@ async fn test_http_server(
     }
 
     // Extract server info
-    let server_info = init_response
-        .get("result")
-        .and_then(|r| {
-            let name = r.get("serverInfo")?.get("name")?.as_str()?.to_string();
-            let version = r.get("serverInfo")?.get("version")?.as_str()?.to_string();
-            let protocol_version = r
-                .get("protocolVersion")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown")
-                .to_string();
-            Some(ServerInfo {
-                name,
-                version,
-                protocol_version,
-            })
-        });
+    let server_info = init_response.get("result").and_then(|r| {
+        let name = r.get("serverInfo")?.get("name")?.as_str()?.to_string();
+        let version = r.get("serverInfo")?.get("version")?.as_str()?.to_string();
+        let protocol_version = r
+            .get("protocolVersion")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        Some(ServerInfo {
+            name,
+            version,
+            protocol_version,
+        })
+    });
 
     if server_info.is_none() {
         return Ok(McpTestResult {
@@ -620,21 +627,238 @@ async fn test_http_server(
     }
 
     let server_info = server_info.unwrap();
-    info!("Connected to MCP server: {} v{}", server_info.name, server_info.version);
+    info!(
+        "Connected to MCP server: {} v{}",
+        server_info.name, server_info.version
+    );
 
-    // For SSE servers, we may not be able to list tools/resources/prompts in the same way
-    // Return success with server info only for now
+    // Request tools list
+    let tools_request = json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/list",
+        "params": {}
+    });
+
+    debug!("Requesting tools list");
+    let tools_response = if is_sse {
+        // For SSE, we need to parse the response differently
+        match timeout(
+            Duration::from_secs(10),
+            client
+                .post(&url)
+                .headers(req_headers.clone())
+                .json(&tools_request)
+                .send(),
+        )
+        .await
+        {
+            Ok(Ok(resp)) => {
+                let full_text = resp.text().await.unwrap_or_default();
+                let json_str = full_text
+                    .lines()
+                    .filter(|line| line.starts_with("data:"))
+                    .filter_map(|line| line.strip_prefix("data:"))
+                    .next()
+                    .unwrap_or("");
+                serde_json::from_str::<Value>(json_str).ok()
+            }
+            _ => None,
+        }
+    } else {
+        match timeout(
+            Duration::from_secs(10),
+            client
+                .post(&url)
+                .headers(req_headers.clone())
+                .json(&tools_request)
+                .send(),
+        )
+        .await
+        {
+            Ok(Ok(resp)) => resp.json::<Value>().await.ok(),
+            _ => None,
+        }
+    };
+
+    // Request resources list
+    let resources_request = json!({
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "resources/list",
+        "params": {}
+    });
+
+    debug!("Requesting resources list");
+    let resources_response = if is_sse {
+        match timeout(
+            Duration::from_secs(10),
+            client
+                .post(&url)
+                .headers(req_headers.clone())
+                .json(&resources_request)
+                .send(),
+        )
+        .await
+        {
+            Ok(Ok(resp)) => {
+                let full_text = resp.text().await.unwrap_or_default();
+                let json_str = full_text
+                    .lines()
+                    .filter(|line| line.starts_with("data:"))
+                    .filter_map(|line| line.strip_prefix("data:"))
+                    .next()
+                    .unwrap_or("");
+                serde_json::from_str::<Value>(json_str).ok()
+            }
+            _ => None,
+        }
+    } else {
+        match timeout(
+            Duration::from_secs(10),
+            client
+                .post(&url)
+                .headers(req_headers.clone())
+                .json(&resources_request)
+                .send(),
+        )
+        .await
+        {
+            Ok(Ok(resp)) => resp.json::<Value>().await.ok(),
+            _ => None,
+        }
+    };
+
+    // Request prompts list
+    let prompts_request = json!({
+        "jsonrpc": "2.0",
+        "id": 4,
+        "method": "prompts/list",
+        "params": {}
+    });
+
+    debug!("Requesting prompts list");
+    let prompts_response = if is_sse {
+        match timeout(
+            Duration::from_secs(10),
+            client
+                .post(&url)
+                .headers(req_headers)
+                .json(&prompts_request)
+                .send(),
+        )
+        .await
+        {
+            Ok(Ok(resp)) => {
+                let full_text = resp.text().await.unwrap_or_default();
+                let json_str = full_text
+                    .lines()
+                    .filter(|line| line.starts_with("data:"))
+                    .filter_map(|line| line.strip_prefix("data:"))
+                    .next()
+                    .unwrap_or("");
+                serde_json::from_str::<Value>(json_str).ok()
+            }
+            _ => None,
+        }
+    } else {
+        match timeout(
+            Duration::from_secs(10),
+            client
+                .post(&url)
+                .headers(req_headers)
+                .json(&prompts_request)
+                .send(),
+        )
+        .await
+        {
+            Ok(Ok(resp)) => resp.json::<Value>().await.ok(),
+            _ => None,
+        }
+    };
+
+    // Parse tools
+    let tools = tools_response.and_then(|resp| {
+        resp.get("result")
+            .and_then(|r| r.get("tools"))
+            .and_then(|t| t.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|item| {
+                        let name = item.get("name")?.as_str()?.to_string();
+                        let description = item
+                            .get("description")
+                            .and_then(|d| d.as_str())
+                            .map(String::from);
+                        let input_schema = item.get("inputSchema").cloned();
+                        Some(ToolInfo {
+                            name,
+                            description,
+                            input_schema,
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+    });
+
+    // Parse resources
+    let resources = resources_response.and_then(|resp| {
+        resp.get("result")
+            .and_then(|r| r.get("resources"))
+            .and_then(|r| r.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|item| {
+                        let uri = item.get("uri")?.as_str()?.to_string();
+                        let name = item.get("name").and_then(|n| n.as_str()).map(String::from);
+                        let description = item
+                            .get("description")
+                            .and_then(|d| d.as_str())
+                            .map(String::from);
+                        Some(ResourceInfo {
+                            uri,
+                            name,
+                            description,
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+    });
+
+    // Parse prompts
+    let prompts = prompts_response.and_then(|resp| {
+        resp.get("result")
+            .and_then(|r| r.get("prompts"))
+            .and_then(|p| p.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|item| {
+                        let name = item.get("name")?.as_str()?.to_string();
+                        let description = item
+                            .get("description")
+                            .and_then(|d| d.as_str())
+                            .map(String::from);
+                        Some(PromptInfo { name, description })
+                    })
+                    .collect::<Vec<_>>()
+            })
+    });
+
     Ok(McpTestResult {
         success: true,
         message: format!("MCP server '{}' initialized successfully", server_info.name),
         details: Some(format!(
-            "Protocol Version: {}\nServer Version: {}\nNote: SSE server, detailed capabilities not fetched",
-            server_info.protocol_version, server_info.version
+            "Protocol Version: {}\nServer Version: {}\nTools: {}\nResources: {}\nPrompts: {}",
+            server_info.protocol_version,
+            server_info.version,
+            tools.as_ref().map(|t| t.len()).unwrap_or(0),
+            resources.as_ref().map(|r| r.len()).unwrap_or(0),
+            prompts.as_ref().map(|p| p.len()).unwrap_or(0)
         )),
         server_info: Some(server_info),
-        tools: None,
-        resources: None,
-        prompts: None,
+        tools,
+        resources,
+        prompts,
     })
 }
 
@@ -657,14 +881,11 @@ pub async fn test_mcp_server(spec: Value) -> Result<McpTestResult, String> {
                     })
                     .unwrap_or_default();
 
-                let env_map = spec
-                    .get("env")
-                    .and_then(|v| v.as_object())
-                    .map(|obj| {
-                        obj.iter()
-                            .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
-                            .collect()
-                    });
+                let env_map = spec.get("env").and_then(|v| v.as_object()).map(|obj| {
+                    obj.iter()
+                        .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                        .collect()
+                });
 
                 (cmd_str.to_string(), args, env_map)
             } else if let Some(cmd_array) = command.as_array() {
@@ -710,7 +931,212 @@ pub async fn test_mcp_server(spec: Value) -> Result<McpTestResult, String> {
 
             test_http_server(url, headers).await
         }
-_ => Err(format!("Unsupported server type: {}", server_type)),
+        _ => Err(format!("Unsupported server type: {}", server_type)),
+    }
+}
+
+/// 工具测试结果
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ToolTestResult {
+    pub success: bool,
+    pub message: String,
+    pub details: Option<String>,
+}
+
+/// 测试 stdio 类型的 MCP 工具
+async fn test_stdio_tool(
+    command: String,
+    args: Vec<String>,
+    _env: Option<HashMap<String, String>>,
+    tool_name: String,
+    tool_args: Value,
+) -> Result<ToolTestResult, String> {
+    let mut child = match TokioCommand::new(&command)
+        .args(&args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            return Ok(ToolTestResult {
+                success: false,
+                message: format!("Failed to start MCP server: {}", e),
+                details: Some(e.to_string()),
+            });
+        }
+    };
+
+    let mut stdin = child.stdin.take().expect("Failed to open stdin");
+    let stdout = child.stdout.take().expect("Failed to open stdout");
+    let mut reader = BufReader::new(stdout);
+
+    // Initialize connection
+    let init_request = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {
+                "name": "CC-Switch MCP Tool Tester",
+                "version": "1.0.0"
+            }
+        }
+    });
+
+    let request_str = format!("{}\n", serde_json::to_string(&init_request).unwrap());
+    stdin
+        .write_all(request_str.as_bytes())
+        .await
+        .map_err(|e| e.to_string())?;
+    stdin.flush().await.map_err(|e| e.to_string())?;
+
+    let mut response_line = String::new();
+    timeout(
+        Duration::from_secs(10),
+        reader.read_line(&mut response_line),
+    )
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())?;
+
+    // Send initialized notification
+    let initialized_notification = json!({
+        "jsonrpc": "2.0",
+        "method": "notifications/initialized"
+    });
+    let init_notif_str = format!(
+        "{}\n",
+        serde_json::to_string(&initialized_notification).map_err(|e| e.to_string())?
+    );
+    stdin
+        .write_all(init_notif_str.as_bytes())
+        .await
+        .map_err(|e| e.to_string())?;
+    stdin.flush().await.map_err(|e| e.to_string())?;
+
+    // Call tool
+    let tool_call_request = json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/call",
+        "params": {
+            "name": tool_name,
+            "arguments": tool_args
+        }
+    });
+
+    let tool_call_str = format!(
+        "{}\n",
+        serde_json::to_string(&tool_call_request).map_err(|e| e.to_string())?
+    );
+    stdin
+        .write_all(tool_call_str.as_bytes())
+        .await
+        .map_err(|e| e.to_string())?;
+    stdin.flush().await.map_err(|e| e.to_string())?;
+
+    let mut tool_response_line = String::new();
+    timeout(
+        Duration::from_secs(30),
+        reader.read_line(&mut tool_response_line),
+    )
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())?;
+
+    let _ = child.kill().await;
+    let _ = child.wait().await;
+
+    let response: Value = serde_json::from_str(&tool_response_line).map_err(|e| e.to_string())?;
+
+    if let Some(result) = response.get("result") {
+        Ok(ToolTestResult {
+            success: true,
+            message: format!("Tool '{}' executed successfully", tool_name),
+            details: Some(format!("Result: {}", result)),
+        })
+    } else if let Some(error) = response.get("error") {
+        Ok(ToolTestResult {
+            success: false,
+            message: format!("Tool '{}' execution failed", tool_name),
+            details: Some(format!("Error: {}", error)),
+        })
+    } else {
+        Ok(ToolTestResult {
+            success: false,
+            message: "Invalid tool response".to_string(),
+            details: Some(format!("Response: {}", response)),
+        })
+    }
+}
+
+/// 测试 MCP 工具
+#[tauri::command]
+pub async fn test_mcp_tool(
+    spec: Value,
+    tool_name: String,
+    tool_args: Value,
+) -> Result<ToolTestResult, String> {
+    let server_type = spec.get("type").and_then(|v| v.as_str()).unwrap_or("stdio");
+
+    match server_type {
+        "stdio" | "local" => {
+            let command = spec.get("command").ok_or("Missing 'command' field")?;
+
+            let (cmd, args, env) = if let Some(cmd_str) = command.as_str() {
+                let args_spec = spec.get("args").and_then(|v| v.as_array());
+                let args: Vec<String> = args_spec
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                let env_map = spec.get("env").and_then(|v| v.as_object()).map(|obj| {
+                    obj.iter()
+                        .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                        .collect()
+                });
+
+                (cmd_str.to_string(), args, env_map)
+            } else if let Some(cmd_array) = command.as_array() {
+                let cmd = cmd_array
+                    .get(0)
+                    .and_then(|v| v.as_str())
+                    .ok_or("Command array is empty")?
+                    .to_string();
+                let args: Vec<String> = cmd_array
+                    .iter()
+                    .skip(1)
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect();
+
+                let env_map = spec
+                    .get("environment")
+                    .and_then(|v| v.as_object())
+                    .map(|obj| {
+                        obj.iter()
+                            .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                            .collect()
+                    });
+
+                (cmd, args, env_map)
+            } else {
+                return Err("Invalid command format".to_string());
+            };
+
+            test_stdio_tool(cmd, args, env, tool_name, tool_args).await
+        }
+        _ => Err(format!(
+            "Tool testing not supported for server type: {}",
+            server_type
+        )),
     }
 }
 

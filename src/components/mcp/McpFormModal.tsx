@@ -897,37 +897,39 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                     </button>
                     {expandedTestSections.tools && (
                       <div className="px-4 pb-4 space-y-2">
-                        {testResult.tools.map((tool, index) => (
-                          <div
-                            key={index}
-                            className="p-3 rounded border bg-card hover:bg-muted/50 transition-colors"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <div className="font-mono font-medium text-sm">
-                                  {tool.name}
-                                </div>
-                                {tool.description && (
-                                  <div className="mt-1 text-xs text-muted-foreground">
-                                    {tool.description}
+                        {[...testResult.tools]
+                          .sort((a, b) => a.name.localeCompare(b.name))
+                          .map((tool, index) => (
+                            <div
+                              key={index}
+                              className="p-3 rounded border bg-card hover:bg-muted/50 transition-colors"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-mono font-medium text-sm">
+                                    {tool.name}
                                   </div>
-                                )}
+                                  {tool.description && (
+                                    <div className="mt-1 text-xs text-muted-foreground">
+                                      {tool.description}
+                                    </div>
+                                  )}
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleTestTool(tool)}
+                                  className="flex-shrink-0"
+                                >
+                                  <Play size={14} className="mr-1" />
+                                  {t("mcp.toolTest.test", {
+                                    defaultValue: "Test",
+                                  })}
+                                </Button>
                               </div>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleTestTool(tool)}
-                                className="flex-shrink-0"
-                              >
-                                <Play size={14} className="mr-1" />
-                                {t("mcp.toolTest.test", {
-                                  defaultValue: "Test",
-                                })}
-                              </Button>
                             </div>
-                          </div>
-                        ))}
+                          ))}
                       </div>
                     )}
                   </div>

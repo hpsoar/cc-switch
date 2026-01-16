@@ -103,6 +103,10 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
     [result?.details],
   );
 
+  const sortedTools = useMemo(() => {
+    return [...tools].sort((a, b) => a.name.localeCompare(b.name));
+  }, [tools]);
+
   useEffect(() => {
     if (isOpen && tool) {
       setSelectedTool(tool);
@@ -348,7 +352,7 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
                 />
               </SelectTrigger>
               <SelectContent className="z-[120]" position="popper">
-                {tools.map((t) => (
+                {sortedTools.map((t) => (
                   <SelectItem key={t.name} value={t.name} className="pl-7">
                     {t.name}
                   </SelectItem>

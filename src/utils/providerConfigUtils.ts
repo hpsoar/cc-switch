@@ -172,6 +172,13 @@ export const getApiKeyFromConfig = (
 ): string => {
   try {
     const config = JSON.parse(jsonString);
+
+    if (appType === "opencode") {
+      const options = config?.options;
+      const key = options?.apiKey;
+      return typeof key === "string" ? key : "";
+    }
+
     const env = config?.env;
 
     if (!env) return "";
@@ -255,6 +262,12 @@ export const hasApiKeyField = (
 ): boolean => {
   try {
     const config = JSON.parse(jsonString);
+
+    if (appType === "opencode") {
+      const options = config?.options ?? {};
+      return Object.prototype.hasOwnProperty.call(options, "apiKey");
+    }
+
     const env = config?.env ?? {};
 
     if (appType === "gemini") {
@@ -283,6 +296,26 @@ export const setApiKeyInConfig = (
   const { createIfMissing = false, appType } = options;
   try {
     const config = JSON.parse(jsonString);
+
+    if (appType === "opencode") {
+      if (!config || typeof config !== "object") {
+        return jsonString;
+      }
+
+      if (!config.options) {
+        if (!createIfMissing) return jsonString;
+        config.options = {};
+      }
+
+      const opts = config.options as Record<string, any>;
+      if ("apiKey" in opts || createIfMissing) {
+        opts.apiKey = apiKey;
+        return JSON.stringify(config, null, 2);
+      }
+
+      return jsonString;
+    }
+
     if (!config.env) {
       if (!createIfMissing) return jsonString;
       config.env = {};

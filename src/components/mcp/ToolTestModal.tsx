@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -50,6 +50,38 @@ interface ParameterField {
   value: any;
 }
 
+interface FormattedDetails {
+  text: string;
+  isJson: boolean;
+}
+
+const formatToolResultDetails = (
+  details?: string | null,
+): FormattedDetails | null => {
+  if (!details) {
+    return null;
+  }
+
+  const withoutPrefix = details.replace(/^Result[:：]\s*/i, "").trim();
+  if (!withoutPrefix) {
+    return { text: "", isJson: false };
+  }
+
+  const looksLikeJson =
+    withoutPrefix.startsWith("{") || withoutPrefix.startsWith("[");
+
+  if (looksLikeJson) {
+    try {
+      const parsed = JSON.parse(withoutPrefix);
+      return { text: JSON.stringify(parsed, null, 2), isJson: true };
+    } catch (error) {
+      // fall through to plain text rendering when JSON parsing fails
+    }
+  }
+
+  return { text: withoutPrefix, isJson: false };
+};
+
 const ToolTestModal: React.FC<ToolTestModalProps> = ({
   isOpen,
   onClose,
@@ -65,6 +97,11 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
   const [showSchema, setShowSchema] = useState(false);
   const [showOptionalParams, setShowOptionalParams] = useState(false);
   const [showAllOptional, setShowAllOptional] = useState(false);
+
+  const formattedDetails = useMemo(
+    () => formatToolResultDetails(result?.details),
+    [result?.details],
+  );
 
   useEffect(() => {
     if (isOpen && tool) {
@@ -208,8 +245,8 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
   };
 
   const handleCopyResult = () => {
-    if (result?.details) {
-      navigator.clipboard.writeText(result.details);
+    if (formattedDetails) {
+      navigator.clipboard.writeText(formattedDetails.text);
       toast.success(t("common.copied"), { closeButton: true });
     }
   };
@@ -566,10 +603,10 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
                 )}
                 <p className="font-medium text-sm">{result.message}</p>
               </div>
-              {result.details && (
+              {formattedDetails && (
                 <div className="relative group">
                   <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono break-all bg-background/80 p-3 rounded border border-border">
-                    {result.details}
+                    {formattedDetails.text}
                   </pre>
                   <Button
                     type="button"

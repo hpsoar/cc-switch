@@ -59,7 +59,7 @@ pub struct PromptInfo {
 async fn test_stdio_server(
     command: String,
     args: Vec<String>,
-    _env: Option<HashMap<String, String>>,
+    env: Option<HashMap<String, String>>,
 ) -> Result<McpTestResult, String> {
     // 1. 异步检查命令是否存在
     let cmd_check = if cfg!(target_os = "windows") {
@@ -104,14 +104,21 @@ async fn test_stdio_server(
     }
 
     // 2. 尝试启动进程并进行基本的 MCP 协议测试
-    let mut child = match TokioCommand::new(&command)
+    let mut command_builder = TokioCommand::new(&command);
+    command_builder
         .args(&args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped()) // 改为 piped 以便调试
-        .kill_on_drop(true) // 确保进程在超时时被杀死
-        .spawn()
-    {
+        .kill_on_drop(true); // 确保进程在超时时被杀死
+
+    if let Some(env_map) = env.as_ref() {
+        for (key, value) in env_map {
+            command_builder.env(key, value);
+        }
+    }
+
+    let mut child = match command_builder.spawn() {
         Ok(c) => c,
         Err(e) => {
             return Ok(McpTestResult {
@@ -947,18 +954,25 @@ pub struct ToolTestResult {
 async fn test_stdio_tool(
     command: String,
     args: Vec<String>,
-    _env: Option<HashMap<String, String>>,
+    env: Option<HashMap<String, String>>,
     tool_name: String,
     tool_args: Value,
 ) -> Result<ToolTestResult, String> {
-    let mut child = match TokioCommand::new(&command)
+    let mut command_builder = TokioCommand::new(&command);
+    command_builder
         .args(&args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()
-    {
+        .kill_on_drop(true);
+
+    if let Some(env_map) = env.as_ref() {
+        for (key, value) in env_map {
+            command_builder.env(key, value);
+        }
+    }
+
+    let mut child = match command_builder.spawn() {
         Ok(c) => c,
         Err(e) => {
             return Ok(ToolTestResult {

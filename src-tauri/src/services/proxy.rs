@@ -320,8 +320,8 @@ impl ProxyService {
             return Ok(()); // 未接管，幂等返回
         }
 
-        // 1) 恢复 Live 配置
-        self.restore_live_config_for_app(&app).await?;
+        // 1) 恢复 Live 配置（缺少备份时启用兜底流程）
+        self.restore_live_config_for_app_with_fallback(&app).await?;
 
         // 2) 删除该 app 的备份（避免长期存储敏感 Token）
         self.db
@@ -570,6 +570,21 @@ impl ProxyService {
                 let mut updated_count = 0usize;
                 for (provider_key, config_value) in provider_entries {
                     if !config_value.is_object() {
+                        continue;
+                    }
+
+                    let has_placeholder_api_key = config_value
+                        .get("options")
+                        .and_then(|v| v.as_object())
+                        .and_then(|options| options.get("apiKey"))
+                        .and_then(|v| v.as_str())
+                        .map(|api_key| api_key == PROXY_TOKEN_PLACEHOLDER)
+                        .unwrap_or(false);
+
+                    if has_placeholder_api_key {
+                        log::debug!(
+                            "[Proxy] Skip syncing OpenCode provider '{provider_key}' because it contains proxy placeholder key"
+                        );
                         continue;
                     }
 
@@ -2251,6 +2266,215 @@ model = "gpt-5.1-codex"
         assert!(
             ProxyService::is_opencode_live_taken_over(&config),
             "placeholder should be detected"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn disable_takeover_restores_opencode_without_backup() {
+        let _home = TempHome::new();
+        crate::settings::reload_settings().expect("reload settings");
+
+        let db = Arc::new(Database::memory().expect("init db"));
+        let service = ProxyService::new(db.clone());
+
+        let mut provider = Provider::with_id(
+            "op1".to_string(),
+            "Demo Provider".to_string(),
+            json!({
+                "npm": "@ai-sdk/openai-compatible",
+                "name": "Demo Provider",
+                "options": {
+                    "baseURL": "https://api.real.example.com",
+                    "apiKey": "sk-real"
+                },
+                "models": {}
+            }),
+            None,
+        );
+        provider.provider_key = Some("demo".to_string());
+        db.save_provider("opencode", &provider)
+            .expect("save opencode provider");
+
+        let mut live_config = crate::opencode_config::default_opencode_config();
+        live_config
+            .get_mut("provider")
+            .and_then(|v| v.as_object_mut())
+            .expect("provider map")
+            .insert(
+                "demo".to_string(),
+                json!({
+                    "options": {
+                        "baseURL": "http://127.0.0.1:15721",
+                        "apiKey": PROXY_TOKEN_PLACEHOLDER
+                    }
+                }),
+            );
+        crate::opencode_config::write_opencode_config(&live_config)
+            .expect("write opencode live config");
+
+        let mut proxy_config = db
+            .get_proxy_config_for_app("opencode")
+            .await
+            .expect("get proxy config");
+        proxy_config.enabled = true;
+        db.update_proxy_config_for_app(proxy_config)
+            .await
+            .expect("persist enabled flag");
+
+        service
+            .set_takeover_for_app("opencode", false)
+            .await
+            .expect("disable takeover");
+
+        let restored =
+            crate::opencode_config::read_opencode_config().expect("read restored config");
+        let options = restored["provider"]["demo"]["options"]
+            .as_object()
+            .expect("options object");
+        assert_eq!(
+            options.get("baseURL").and_then(|v| v.as_str()),
+            Some("https://api.real.example.com")
+        );
+        assert_eq!(
+            options.get("apiKey").and_then(|v| v.as_str()),
+            Some("sk-real")
+        );
+
+        let updated_config = db
+            .get_proxy_config_for_app("opencode")
+            .await
+            .expect("refresh proxy config");
+        assert!(
+            !updated_config.enabled,
+            "disable flow should clear enabled flag"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn sync_opencode_config_updates_real_values() {
+        let _home = TempHome::new();
+        crate::settings::reload_settings().expect("reload settings");
+
+        let db = Arc::new(Database::memory().expect("init db"));
+        let service = ProxyService::new(db.clone());
+
+        let mut provider = Provider::with_id(
+            "op1".to_string(),
+            "Demo Provider".to_string(),
+            json!({
+                "npm": "@ai-sdk/openai-compatible",
+                "name": "Demo Provider",
+                "options": {
+                    "baseURL": "https://api.old.example.com",
+                    "apiKey": "sk-old"
+                },
+                "models": {}
+            }),
+            None,
+        );
+        provider.provider_key = Some("demo".to_string());
+        db.save_provider("opencode", &provider)
+            .expect("save opencode provider");
+
+        let live_config = json!({
+            "provider": {
+                "demo": {
+                    "options": {
+                        "baseURL": "https://api.new.example.com",
+                        "apiKey": "sk-new"
+                    },
+                    "models": {}
+                }
+            }
+        });
+
+        service
+            .sync_live_config_to_provider(&AppType::OpenCode, &live_config)
+            .await
+            .expect("sync");
+
+        let updated = db
+            .get_provider_by_id("op1", "opencode")
+            .expect("get provider")
+            .expect("provider exists");
+
+        let options = updated
+            .settings_config
+            .get("options")
+            .and_then(|v| v.as_object())
+            .expect("options object");
+        assert_eq!(
+            options.get("baseURL").and_then(|v| v.as_str()),
+            Some("https://api.new.example.com")
+        );
+        assert_eq!(
+            options.get("apiKey").and_then(|v| v.as_str()),
+            Some("sk-new")
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn sync_opencode_skips_proxy_placeholders() {
+        let _home = TempHome::new();
+        crate::settings::reload_settings().expect("reload settings");
+
+        let db = Arc::new(Database::memory().expect("init db"));
+        let service = ProxyService::new(db.clone());
+
+        let mut provider = Provider::with_id(
+            "op1".to_string(),
+            "Demo Provider".to_string(),
+            json!({
+                "npm": "@ai-sdk/openai-compatible",
+                "name": "Demo Provider",
+                "options": {
+                    "baseURL": "https://api.real.example.com",
+                    "apiKey": "sk-real"
+                },
+                "models": {}
+            }),
+            None,
+        );
+        provider.provider_key = Some("demo".to_string());
+        db.save_provider("opencode", &provider)
+            .expect("save opencode provider");
+
+        let live_config = json!({
+            "provider": {
+                "demo": {
+                    "options": {
+                        "baseURL": "http://127.0.0.1:15721",
+                        "apiKey": PROXY_TOKEN_PLACEHOLDER
+                    }
+                }
+            }
+        });
+
+        service
+            .sync_live_config_to_provider(&AppType::OpenCode, &live_config)
+            .await
+            .expect("sync");
+
+        let updated = db
+            .get_provider_by_id("op1", "opencode")
+            .expect("get provider")
+            .expect("provider exists");
+
+        let options = updated
+            .settings_config
+            .get("options")
+            .and_then(|v| v.as_object())
+            .expect("options object");
+        assert_eq!(
+            options.get("baseURL").and_then(|v| v.as_str()),
+            Some("https://api.real.example.com")
+        );
+        assert_eq!(
+            options.get("apiKey").and_then(|v| v.as_str()),
+            Some("sk-real")
         );
     }
 

@@ -99,8 +99,7 @@ export function useProxyStatus() {
     }: {
       appType: keyof ProxyTakeoverStatus;
       enabled: boolean;
-    }) =>
-      invoke("set_proxy_takeover_for_app", { appType, enabled }),
+    }) => invoke("set_proxy_takeover_for_app", { appType, enabled }),
     onSuccess: (_data, variables) => {
       const appLabel =
         variables.appType === "claude"

@@ -41,6 +41,11 @@ interface ToolTestModalProps {
   tools: ToolInfo[];
 }
 
+interface ListedTool {
+  name: string;
+  description?: string;
+}
+
 interface ParameterField {
   name: string;
   type: string;
@@ -98,6 +103,14 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
   const [showOptionalParams, setShowOptionalParams] = useState(false);
   const [showAllOptional, setShowAllOptional] = useState(false);
 
+  const [isMetaToolMode, setIsMetaToolMode] = useState(false);
+  const [listedTools, setListedTools] = useState<ListedTool[]>([]);
+  const [fetchingTools, setFetchingTools] = useState(false);
+  const [selectedListedTool, setSelectedListedTool] = useState<string | null>(
+    null,
+  );
+  const [fetchingSchema, setFetchingSchema] = useState(false);
+
   const formattedDetails = useMemo(
     () => formatToolResultDetails(result?.details),
     [result?.details],
@@ -114,6 +127,14 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
       setResult(null);
       setShowSchema(false);
       setShowOptionalParams(false);
+
+      const metaToolNames = ["TOOL_LIST", "TOOL_GET", "TOOL_CALL"];
+      setIsMetaToolMode(metaToolNames.includes(tool.name));
+
+      if (!metaToolNames.includes(tool.name)) {
+        setListedTools([]);
+        setSelectedListedTool(null);
+      }
     }
   }, [isOpen, tool]);
 
@@ -171,6 +192,286 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
       setResult(null);
       setShowSchema(false);
       setShowOptionalParams(false);
+
+      const metaToolNames = ["TOOL_LIST", "TOOL_GET", "TOOL_CALL"];
+      setIsMetaToolMode(metaToolNames.includes(selected.name));
+
+      if (!metaToolNames.includes(selected.name)) {
+        setListedTools([]);
+        setSelectedListedTool(null);
+      }
+    }
+  };
+
+  const handleFetchToolList = async () => {
+    if (!serverSpec) return;
+
+    setFetchingTools(true);
+    setListedTools([]);
+    setResult(null);
+
+    try {
+      const testResult = await mcpApi.testTool(serverSpec, "TOOL_LIST", {});
+
+      setResult(testResult);
+
+      if (testResult.success && testResult.details) {
+        try {
+          let detailsText = testResult.details;
+
+          if (detailsText.startsWith("Result:")) {
+            detailsText = detailsText.substring(7).trim();
+          } else if (detailsText.startsWith("Result：")) {
+            detailsText = detailsText.substring(8).trim();
+          } else if (detailsText.startsWith("Result:")) {
+            detailsText = detailsText.substring(8).trim();
+          }
+
+          console.log("Parsing tool list details:", detailsText);
+
+          const parsed = JSON.parse(detailsText);
+          console.log("Parsed tool list:", parsed);
+
+          const tools: ListedTool[] = [];
+
+          if (Array.isArray(parsed)) {
+            parsed.forEach((item: any) => {
+              if (item.name) {
+                tools.push({
+                  name: item.name,
+                  description: item.description,
+                });
+              }
+            });
+          } else if (Array.isArray(parsed.tools)) {
+            parsed.tools.forEach((item: any) => {
+              if (item.name) {
+                tools.push({
+                  name: item.name,
+                  description: item.description,
+                });
+              }
+            });
+          } else if (parsed.result && Array.isArray(parsed.result)) {
+            parsed.result.forEach((item: any) => {
+              if (item.name) {
+                tools.push({
+                  name: item.name,
+                  description: item.description,
+                });
+              }
+            });
+          } else if (parsed.result && Array.isArray(parsed.result.tools)) {
+            parsed.result.tools.forEach((item: any) => {
+              if (item.name) {
+                tools.push({
+                  name: item.name,
+                  description: item.description,
+                });
+              }
+            });
+          } else if (parsed.content && Array.isArray(parsed.content)) {
+            parsed.content.forEach((item: any) => {
+              if (item.text) {
+                try {
+                  const pythonList = eval(`(${item.text})`) as any[];
+                  console.log(`Python list item: ${item.text}`);
+
+                  pythonList.forEach((toolItem: any) => {
+                    if (toolItem.name) {
+                      tools.push({
+                        name: toolItem.name,
+                        description: toolItem.description,
+                      });
+                    }
+                  });
+                } catch (e: any) {
+                  console.error("Failed to parse Python list:", e);
+                }
+              } else if (item.name) {
+                tools.push({
+                  name: item.name,
+                  description: item.description,
+                });
+              }
+            });
+          }
+
+          if (tools.length > 0) {
+            console.log(`Found ${tools.length} tools:`, tools);
+            setListedTools(tools);
+          } else {
+            console.error("No tools found in parsed data");
+            toast.error(
+              t("mcp.toolTest.parseToolsFailed", {
+                defaultValue: "Failed to parse tool list",
+              }) +
+                ": " +
+                t("mcp.toolTest.noToolsFound", {
+                  defaultValue: "No tools found",
+                }),
+              { closeButton: true },
+            );
+          }
+        } catch (parseError: any) {
+          console.error("Failed to parse tool list:", parseError);
+          console.error("Original details:", testResult.details);
+          toast.error(
+            t("mcp.toolTest.parseToolsFailed", {
+              defaultValue: "Failed to parse tool list",
+            }) +
+              ": " +
+              parseError.message +
+              ". Details: " +
+              testResult.details.substring(0, 200),
+            { closeButton: true },
+          );
+        }
+      } else if (!testResult.success) {
+        toast.error(testResult.message, { closeButton: true });
+      }
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error);
+      setResult({
+        success: false,
+        message: t("mcp.toolTest.fetchToolsFailed", {
+          defaultValue: "Failed to fetch tool list",
+        }),
+        details: errorMessage,
+      });
+      toast.error(errorMessage, { closeButton: true });
+    } finally {
+      setFetchingTools(false);
+    }
+  };
+
+  const handleFetchToolSchema = async (toolName: string) => {
+    if (!serverSpec) return;
+
+    setFetchingSchema(true);
+    setSelectedListedTool(toolName);
+    setResult(null);
+
+    try {
+      const testResult = await mcpApi.testTool(serverSpec, "TOOL_GET", {
+        tool_name: toolName,
+      });
+
+      setResult(testResult);
+
+      if (testResult.success && testResult.details) {
+        try {
+          let detailsText = testResult.details;
+
+          if (detailsText.startsWith("Result:")) {
+            detailsText = detailsText.substring(7).trim();
+          }
+
+          const details = JSON.parse(detailsText);
+
+          if (details) {
+            const dynamicTool: ToolInfo = {
+              name: toolName,
+              description: details.description,
+              input_schema: details.parameters || details.input_schema,
+            };
+            setSelectedTool(dynamicTool);
+            parseToolSchema(dynamicTool);
+            setIsMetaToolMode(false);
+          }
+        } catch (parseError: any) {
+          console.error("Failed to parse tool schema:", parseError);
+          console.error("Original details:", testResult.details);
+          toast.error(
+            t("mcp.toolTest.parseSchemaFailed", {
+              defaultValue: "Failed to parse tool schema",
+            }),
+            { closeButton: true },
+          );
+        }
+      }
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error);
+      setResult({
+        success: false,
+        message: t("mcp.toolTest.fetchSchemaFailed", {
+          defaultValue: "Failed to fetch tool schema",
+        }),
+        details: errorMessage,
+      });
+      toast.error(errorMessage, { closeButton: true });
+    } finally {
+      setFetchingSchema(false);
+    }
+  };
+
+  const handleExecuteWithMetaTool = async () => {
+    if (!serverSpec || !selectedListedTool) {
+      toast.error("Please select a tool first", { closeButton: true });
+      return;
+    }
+
+    const missingRequired = parameters.filter(
+      (p) => p.required && (p.value === undefined || p.value === ""),
+    );
+    if (missingRequired.length > 0) {
+      toast.error(
+        t("mcp.toolTest.missingRequired", {
+          defaultValue: "Missing required parameters",
+          names: missingRequired.map((p) => p.name).join(", "),
+        }),
+        { closeButton: true },
+      );
+      return;
+    }
+
+    const toolArgs: any = {
+      tool_name: selectedListedTool,
+      arguments: {},
+    };
+
+    parameters.forEach((p) => {
+      if (p.value !== undefined && p.value !== "") {
+        try {
+          if (p.type === "array" || p.type === "object") {
+            toolArgs.arguments[p.name] = JSON.parse(p.value);
+          } else {
+            toolArgs.arguments[p.name] = p.value;
+          }
+        } catch {
+          toolArgs.arguments[p.name] = p.value;
+        }
+      }
+    });
+
+    setExecuting(true);
+    setResult(null);
+
+    try {
+      const testResult = await mcpApi.testTool(
+        serverSpec,
+        "TOOL_CALL",
+        toolArgs,
+      );
+      setResult(testResult);
+
+      if (testResult.success) {
+        toast.success(testResult.message, { closeButton: true });
+      } else {
+        toast.error(testResult.message, { closeButton: true });
+      }
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error);
+      setResult({
+        success: false,
+        message: t("mcp.toolTest.executionFailed", {
+          defaultValue: "Tool execution failed",
+        }),
+        details: errorMessage,
+      });
+      toast.error(errorMessage, { closeButton: true });
+    } finally {
+      setExecuting(false);
     }
   };
 
@@ -370,6 +671,66 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
                   {selectedTool.description}
                 </p>
               </div>
+            </div>
+          )}
+
+          {isMetaToolMode && selectedTool?.name === "TOOL_LIST" && (
+            <div className="space-y-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleFetchToolList}
+                disabled={fetchingTools || !serverSpec}
+                className="w-full"
+              >
+                {fetchingTools ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin mr-2" />
+                    {t("mcp.toolTest.fetchingTools", {
+                      defaultValue: "Fetching tools...",
+                    })}
+                  </>
+                ) : (
+                  <>
+                    <Code2 size={16} className="mr-2" />
+                    {t("mcp.toolTest.fetchToolsList", {
+                      defaultValue: "Fetch Tool List",
+                    })}
+                  </>
+                )}
+              </Button>
+
+              {listedTools.length > 0 && (
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-foreground">
+                    {t("mcp.toolTest.availableTools", {
+                      defaultValue: "Available Tools",
+                    })}
+                  </label>
+                  <div className="max-h-60 overflow-y-auto rounded-lg border border-border-default bg-card">
+                    {listedTools.map((tool) => (
+                      <button
+                        key={tool.name}
+                        type="button"
+                        onClick={() => handleFetchToolSchema(tool.name)}
+                        disabled={fetchingSchema}
+                        className={`w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors border-b last:border-b-0 ${
+                          selectedListedTool === tool.name
+                            ? "bg-muted/80 font-medium"
+                            : ""
+                        }`}
+                      >
+                        <div className="font-mono text-sm">{tool.name}</div>
+                        {tool.description && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {tool.description}
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -633,8 +994,16 @@ const ToolTestModal: React.FC<ToolTestModalProps> = ({
           </Button>
           <Button
             type="button"
-            onClick={handleExecute}
-            disabled={executing || !selectedTool}
+            onClick={
+              isMetaToolMode && selectedListedTool
+                ? handleExecuteWithMetaTool
+                : handleExecute
+            }
+            disabled={
+              executing ||
+              !selectedTool ||
+              (isMetaToolMode && !selectedListedTool)
+            }
             className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {executing ? (

@@ -762,7 +762,16 @@
       "execute": "実行",
       "executing": "実行中...",
       "executionFailed": "ツールの実行に失敗しました",
-      "missingRequired": "必須パラメータが不足しています: {{names}}"
+      "missingRequired": "必須パラメータが不足しています: {{names}}",
+      "fetchToolsList": "ツールリストを取得",
+      "fetchingTools": "ツールリストを取得中...",
+      "availableTools": "利用可能なツール",
+      "fetchToolsFailed": "ツールリストの取得に失敗しました",
+      "parseToolsFailed": "ツールリストの解析に失敗しました",
+      "noToolsFound": "ツールが見つかりませんでした",
+      "fetchSchemaFailed": "ツールスキーマの取得に失敗しました",
+      "parseSchemaFailed": "ツールスキーマの解析に失敗しました",
+      "moreParameters": "さらにパラメータ"
     },
     "noTestResults": "テスト結果がありません",
     "error": {

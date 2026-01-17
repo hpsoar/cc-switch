@@ -809,7 +809,16 @@
       "execute": "Execute",
       "executing": "Executing...",
       "executionFailed": "Tool execution failed",
-      "missingRequired": "Missing required parameters: {{names}}"
+      "missingRequired": "Missing required parameters: {{names}}",
+      "fetchToolsList": "Fetch Tool List",
+      "fetchingTools": "Fetching tools...",
+      "availableTools": "Available Tools",
+      "fetchToolsFailed": "Failed to fetch tool list",
+      "parseToolsFailed": "Failed to parse tool list",
+      "noToolsFound": "No tools found",
+      "fetchSchemaFailed": "Failed to fetch tool schema",
+      "parseSchemaFailed": "Failed to parse tool schema",
+      "moreParameters": "more parameters"
     }
   },
   "prompts": {

@@ -809,7 +809,16 @@
       "execute": "执行",
       "executing": "执行中...",
       "executionFailed": "工具执行失败",
-      "missingRequired": "缺少必需参数: {{names}}"
+      "missingRequired": "缺少必需参数: {{names}}",
+      "fetchToolsList": "获取工具列表",
+      "fetchingTools": "正在获取工具列表...",
+      "availableTools": "可用工具",
+      "fetchToolsFailed": "获取工具列表失败",
+      "parseToolsFailed": "解析工具列表失败",
+      "noToolsFound": "未找到工具",
+      "fetchSchemaFailed": "获取工具模式失败",
+      "parseSchemaFailed": "解析工具模式失败",
+      "moreParameters": "更多参数"
     }
   },
   "prompts": {

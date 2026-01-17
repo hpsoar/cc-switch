@@ -131,7 +131,7 @@ fn test_sync_command_array_to_opencode() {
     let server_config = json!({
         "type": "stdio",
         "command": ["node", "server.js", "--port", "3000"],
-        "environment": {
+        "env": {
             "NODE_ENV": "production"
         }
     });

@@ -73,7 +73,7 @@ pub fn sync_single_server_to_opencode(
     // 对于 local 类型，添加 environment 字段（OpenCode 要求）
     if opencode_type == "local" {
         opencode_entry["environment"] = server
-            .get("environment")
+            .get("env")
             .and_then(|v| v.as_object())
             .map(|o| json!(o))
             .unwrap_or(json!({}));
@@ -145,7 +145,7 @@ pub fn import_from_opencode(
                     local["command"] = command.clone();
                 }
                 if let Some(environment) = entry_obj.get("environment") {
-                    local["environment"] = environment.clone();
+                    local["env"] = environment.clone();
                 }
                 local
             }

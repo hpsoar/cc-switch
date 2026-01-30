@@ -1,10 +1,12 @@
 import { useCallback, useMemo } from "react";
-import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { providersApi, settingsApi, type AppId } from "@/lib/api";
+import { useTranslation } from "react-i18next";
+import type { AppId } from "@/lib/api";
+import type { Settings } from "@/types";
+import { appConfigDirSettingKeyMap, appIds } from "@/apps/registry";
+import { providersApi, settingsApi } from "@/lib/api";
 import { syncCurrentProvidersLiveSafe } from "@/utils/postChangeSync";
 import { useSettingsQuery, useSaveSettingsMutation } from "@/lib/query";
-import type { Settings } from "@/types";
 import { useSettingsForm, type SettingsFormState } from "./useSettingsForm";
 import {
   useDirectorySettings,
@@ -25,6 +27,7 @@ export interface UseSettingsResult {
   isPortable: boolean;
   appConfigDir?: string;
   resolvedDirs: ResolvedDirectories;
+  directoryOverrides: Record<AppId, string | undefined>;
   requiresRestart: boolean;
   updateSettings: (updates: Partial<SettingsFormState>) => void;
   updateDirectory: (app: AppId, value?: string) => void;
@@ -78,6 +81,7 @@ export function useSettings(): UseSettingsResult {
   const {
     appConfigDir,
     resolvedDirs,
+    directoryOverrides,
     isLoading: isDirectoryLoading,
     initialAppConfigDir,
     updateDirectory,
@@ -105,11 +109,17 @@ export function useSettings(): UseSettingsResult {
   const resetSettings = useCallback(() => {
     resetForm(data ?? null);
     syncLanguage(initialLanguage);
-    resetAllDirectories(
-      sanitizeDir(data?.claudeConfigDir),
-      sanitizeDir(data?.codexConfigDir),
-      sanitizeDir(data?.geminiConfigDir),
+    const overrides = appIds.reduce<Record<AppId, string | undefined>>(
+      (acc, appId) => {
+        const key = appConfigDirSettingKeyMap[appId];
+        acc[appId] = sanitizeDir(
+          data?.[key as keyof Settings] as string | undefined,
+        );
+        return acc;
+      },
+      {} as Record<AppId, string | undefined>,
     );
+    resetAllDirectories(overrides);
     setRequiresRestart(false);
   }, [
     data,
@@ -128,15 +138,22 @@ export function useSettings(): UseSettingsResult {
       if (!mergedSettings) return null;
 
       try {
-        const sanitizedClaudeDir = sanitizeDir(mergedSettings.claudeConfigDir);
-        const sanitizedCodexDir = sanitizeDir(mergedSettings.codexConfigDir);
-        const sanitizedGeminiDir = sanitizeDir(mergedSettings.geminiConfigDir);
+        const sanitizedConfigDirs = appIds.reduce(
+          (acc, appId) => {
+            const key = appConfigDirSettingKeyMap[appId];
+            acc[key] = sanitizeDir(
+              mergedSettings[
+                key as keyof SettingsFormState
+              ] as string | undefined,
+            );
+            return acc;
+          },
+          {} as Record<string, string | undefined>,
+        );
 
         const payload: Settings = {
           ...mergedSettings,
-          claudeConfigDir: sanitizedClaudeDir,
-          codexConfigDir: sanitizedCodexDir,
-          geminiConfigDir: sanitizedGeminiDir,
+          ...(sanitizedConfigDirs as Partial<Settings>),
           language: mergedSettings.language,
         };
 
@@ -235,19 +252,33 @@ export function useSettings(): UseSettingsResult {
       if (!mergedSettings) return null;
       try {
         const sanitizedAppDir = sanitizeDir(appConfigDir);
-        const sanitizedClaudeDir = sanitizeDir(mergedSettings.claudeConfigDir);
-        const sanitizedCodexDir = sanitizeDir(mergedSettings.codexConfigDir);
-        const sanitizedGeminiDir = sanitizeDir(mergedSettings.geminiConfigDir);
+        const sanitizedConfigDirs = appIds.reduce(
+          (acc, appId) => {
+            const key = appConfigDirSettingKeyMap[appId];
+            acc[key] = sanitizeDir(
+              mergedSettings[
+                key as keyof SettingsFormState
+              ] as string | undefined,
+            );
+            return acc;
+          },
+          {} as Record<string, string | undefined>,
+        );
         const previousAppDir = initialAppConfigDir;
-        const previousClaudeDir = sanitizeDir(data?.claudeConfigDir);
-        const previousCodexDir = sanitizeDir(data?.codexConfigDir);
-        const previousGeminiDir = sanitizeDir(data?.geminiConfigDir);
+        const previousConfigDirs = appIds.reduce(
+          (acc, appId) => {
+            const key = appConfigDirSettingKeyMap[appId];
+            acc[key] = sanitizeDir(
+              data?.[key as keyof Settings] as string | undefined,
+            );
+            return acc;
+          },
+          {} as Record<string, string | undefined>,
+        );
 
         const payload: Settings = {
           ...mergedSettings,
-          claudeConfigDir: sanitizedClaudeDir,
-          codexConfigDir: sanitizedCodexDir,
-          geminiConfigDir: sanitizedGeminiDir,
+          ...(sanitizedConfigDirs as Partial<Settings>),
           language: mergedSettings.language,
         };
 
@@ -344,11 +375,12 @@ export function useSettings(): UseSettingsResult {
           console.warn("[useSettings] Failed to refresh tray menu", error);
         }
 
-        // 如果 Claude/Codex/Gemini 的目录覆盖发生变化，则立即将“当前使用的供应商”写回对应应用的 live 配置
-        const claudeDirChanged = sanitizedClaudeDir !== previousClaudeDir;
-        const codexDirChanged = sanitizedCodexDir !== previousCodexDir;
-        const geminiDirChanged = sanitizedGeminiDir !== previousGeminiDir;
-        if (claudeDirChanged || codexDirChanged || geminiDirChanged) {
+        // 如果任一应用的目录覆盖发生变化，则立即将“当前使用的供应商”写回对应应用的 live 配置
+        const configDirChanged = appIds.some((appId) => {
+          const key = appConfigDirSettingKeyMap[appId];
+          return sanitizedConfigDirs[key] !== previousConfigDirs[key];
+        });
+        if (configDirChanged) {
           const syncResult = await syncCurrentProvidersLiveSafe();
           if (!syncResult.ok) {
             console.warn(
@@ -405,6 +437,7 @@ export function useSettings(): UseSettingsResult {
     isPortable,
     appConfigDir,
     resolvedDirs,
+    directoryOverrides,
     requiresRestart,
     updateSettings,
     updateDirectory,

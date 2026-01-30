@@ -95,12 +95,16 @@ const UnifiedMcpPanel = React.forwardRef<
   // Count enabled servers per app
   // For OpenCode, use the count from the config file instead of the database
   const enabledCounts = useMemo(() => {
-    const counts = { claude: 0, codex: 0, gemini: 0, opencode: 0 };
+    const counts = appIds.reduce<Record<AppId, number>>((acc, appId) => {
+      acc[appId] = 0;
+      return acc;
+    }, {} as Record<AppId, number>);
     serverEntries.forEach(([_, server]) => {
-      if (server.apps.claude) counts.claude++;
-      if (server.apps.codex) counts.codex++;
-      if (server.apps.gemini) counts.gemini++;
-      if (server.apps.opencode) counts.opencode++;
+      appIds.forEach((appId) => {
+        if (server.apps[appId]) {
+          counts[appId] += 1;
+        }
+      });
     });
     // Override OpenCode count with the actual count from config file
     if (openCodeStatus) {
@@ -218,34 +222,16 @@ const UnifiedMcpPanel = React.forwardRef<
             >
               {t("common.all")} ({serverEntries.length})
             </Button>
-            <Button
-              variant={filterApp === "claude" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilterApp("claude")}
-            >
-              {t("mcp.unifiedPanel.apps.claude")} ({enabledCounts.claude})
-            </Button>
-            <Button
-              variant={filterApp === "codex" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilterApp("codex")}
-            >
-              {t("mcp.unifiedPanel.apps.codex")} ({enabledCounts.codex})
-            </Button>
-            <Button
-              variant={filterApp === "gemini" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilterApp("gemini")}
-            >
-              {t("mcp.unifiedPanel.apps.gemini")} ({enabledCounts.gemini})
-            </Button>
-            <Button
-              variant={filterApp === "opencode" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilterApp("opencode")}
-            >
-              {t("mcp.unifiedPanel.apps.opencode")} ({enabledCounts.opencode})
-            </Button>
+            {appIds.map((appId) => (
+              <Button
+                key={appId}
+                variant={filterApp === appId ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilterApp(appId)}
+              >
+                {t(`mcp.unifiedPanel.apps.${appId}`)} ({enabledCounts[appId]})
+              </Button>
+            ))}
           </div>
 
           {/* Result Count */}
@@ -411,69 +397,26 @@ const UnifiedMcpListItem: React.FC<UnifiedMcpListItemProps> = ({
 
       {/* 中间：应用开关 */}
       <div className="flex flex-col gap-2 flex-shrink-0 min-w-[120px]">
-        <div className="flex items-center justify-between gap-3">
-          <label
-            htmlFor={`${id}-claude`}
-            className="text-sm text-foreground/80 cursor-pointer"
+        {appIds.map((appId) => (
+          <div
+            key={`${id}-${appId}`}
+            className="flex items-center justify-between gap-3"
           >
-            {t("mcp.unifiedPanel.apps.claude")}
-          </label>
-          <Switch
-            id={`${id}-claude`}
-            checked={server.apps.claude}
-            onCheckedChange={(checked: boolean) =>
-              onToggleApp(id, "claude", checked)
-            }
-          />
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <label
-            htmlFor={`${id}-codex`}
-            className="text-sm text-foreground/80 cursor-pointer"
-          >
-            {t("mcp.unifiedPanel.apps.codex")}
-          </label>
-          <Switch
-            id={`${id}-codex`}
-            checked={server.apps.codex}
-            onCheckedChange={(checked: boolean) =>
-              onToggleApp(id, "codex", checked)
-            }
-          />
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <label
-            htmlFor={`${id}-gemini`}
-            className="text-sm text-foreground/80 cursor-pointer"
-          >
-            {t("mcp.unifiedPanel.apps.gemini")}
-          </label>
-          <Switch
-            id={`${id}-gemini`}
-            checked={server.apps.gemini}
-            onCheckedChange={(checked: boolean) =>
-              onToggleApp(id, "gemini", checked)
-            }
-          />
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <label
-            htmlFor={`${id}-opencode`}
-            className="text-sm text-foreground/80 cursor-pointer"
-          >
-            {t("mcp.unifiedPanel.apps.opencode")}
-          </label>
-          <Switch
-            id={`${id}-opencode`}
-            checked={server.apps.opencode}
-            onCheckedChange={(checked: boolean) =>
-              onToggleApp(id, "opencode", checked)
-            }
-          />
-        </div>
+            <label
+              htmlFor={`${id}-${appId}`}
+              className="text-sm text-foreground/80 cursor-pointer"
+            >
+              {t(`mcp.unifiedPanel.apps.${appId}`)}
+            </label>
+            <Switch
+              id={`${id}-${appId}`}
+              checked={server.apps[appId]}
+              onCheckedChange={(checked: boolean) =>
+                onToggleApp(id, appId, checked)
+              }
+            />
+          </div>
+        ))}
       </div>
 
       {/* 右侧：操作按钮 */}

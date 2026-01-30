@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSettingsQuery } from "@/lib/query";
 import type { Settings } from "@/types";
+import { useSettingsQuery } from "@/lib/query";
 
 type Language = "zh" | "en" | "ja";
 
@@ -86,6 +86,8 @@ export function useSettingsForm(): UseSettingsFormResult {
       skipClaudeOnboarding: data.skipClaudeOnboarding ?? true,
       claudeConfigDir: sanitizeDir(data.claudeConfigDir),
       codexConfigDir: sanitizeDir(data.codexConfigDir),
+      geminiConfigDir: sanitizeDir(data.geminiConfigDir),
+      opencodeConfigDir: sanitizeDir(data.opencodeConfigDir),
       language: normalizedLanguage,
     };
 
@@ -141,6 +143,8 @@ export function useSettingsForm(): UseSettingsFormResult {
         skipClaudeOnboarding: serverData.skipClaudeOnboarding ?? true,
         claudeConfigDir: sanitizeDir(serverData.claudeConfigDir),
         codexConfigDir: sanitizeDir(serverData.codexConfigDir),
+        geminiConfigDir: sanitizeDir(serverData.geminiConfigDir),
+        opencodeConfigDir: sanitizeDir(serverData.opencodeConfigDir),
         language: normalizedLanguage,
       };
 

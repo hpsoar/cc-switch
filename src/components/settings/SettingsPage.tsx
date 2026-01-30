@@ -71,6 +71,7 @@ export function SettingsPage({
     isPortable,
     appConfigDir,
     resolvedDirs,
+    directoryOverrides,
     updateSettings,
     updateDirectory,
     updateAppConfigDir,
@@ -278,13 +279,10 @@ export function SettingsPage({
                         <DirectorySettings
                           appConfigDir={appConfigDir}
                           resolvedDirs={resolvedDirs}
+                          directoryOverrides={directoryOverrides}
                           onAppConfigChange={updateAppConfigDir}
                           onBrowseAppConfig={browseAppConfigDir}
                           onResetAppConfig={resetAppConfigDir}
-                          claudeDir={settings.claudeConfigDir}
-                          codexDir={settings.codexConfigDir}
-                          geminiDir={settings.geminiConfigDir}
-                          opencodeDir={settings.opencodeConfigDir}
                           onDirectoryChange={updateDirectory}
                           onBrowseDirectory={browseDirectory}
                           onResetDirectory={resetDirectory}

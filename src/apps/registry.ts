@@ -6,7 +6,17 @@ export interface AppDefinition {
   icon: string;
   promptFilename: string;
   endpointTimeoutSecs: number;
+  configDirSettingKey: AppConfigDirSettingKey;
+  defaultConfigDirName: string;
+  configDirLabelKey: string;
+  configDirPlaceholderKey: string;
 }
+
+export type AppConfigDirSettingKey =
+  | "claudeConfigDir"
+  | "codexConfigDir"
+  | "geminiConfigDir"
+  | "opencodeConfigDir";
 
 export const appRegistry = {
   claude: {
@@ -15,6 +25,10 @@ export const appRegistry = {
     icon: "claude",
     promptFilename: "CLAUDE.md",
     endpointTimeoutSecs: 8,
+    configDirSettingKey: "claudeConfigDir",
+    defaultConfigDirName: ".claude",
+    configDirLabelKey: "settings.claudeConfigDir",
+    configDirPlaceholderKey: "settings.browsePlaceholderClaude",
   },
   codex: {
     id: "codex",
@@ -22,6 +36,10 @@ export const appRegistry = {
     icon: "openai",
     promptFilename: "AGENTS.md",
     endpointTimeoutSecs: 12,
+    configDirSettingKey: "codexConfigDir",
+    defaultConfigDirName: ".codex",
+    configDirLabelKey: "settings.codexConfigDir",
+    configDirPlaceholderKey: "settings.browsePlaceholderCodex",
   },
   gemini: {
     id: "gemini",
@@ -29,6 +47,10 @@ export const appRegistry = {
     icon: "gemini",
     promptFilename: "GEMINI.md",
     endpointTimeoutSecs: 8,
+    configDirSettingKey: "geminiConfigDir",
+    defaultConfigDirName: ".gemini",
+    configDirLabelKey: "settings.geminiConfigDir",
+    configDirPlaceholderKey: "settings.browsePlaceholderGemini",
   },
   opencode: {
     id: "opencode",
@@ -36,6 +58,10 @@ export const appRegistry = {
     icon: "opencode",
     promptFilename: "AGENTS.md",
     endpointTimeoutSecs: 8,
+    configDirSettingKey: "opencodeConfigDir",
+    defaultConfigDirName: ".config/opencode",
+    configDirLabelKey: "settings.opencodeConfigDir",
+    configDirPlaceholderKey: "settings.browsePlaceholderOpencode",
   },
 } as const satisfies Record<AppId, AppDefinition>;
 
@@ -74,6 +100,41 @@ export const appEndpointTimeoutMap: Record<AppId, number> = appList.reduce(
   },
   {} as Record<AppId, number>,
 );
+
+export const appConfigDirSettingKeyMap: Record<AppId, AppConfigDirSettingKey> =
+  appList.reduce(
+    (acc, app) => {
+      acc[app.id] = app.configDirSettingKey;
+      return acc;
+    },
+    {} as Record<AppId, AppConfigDirSettingKey>,
+  );
+
+export const appDefaultConfigDirNameMap: Record<AppId, string> =
+  appList.reduce(
+    (acc, app) => {
+      acc[app.id] = app.defaultConfigDirName;
+      return acc;
+    },
+    {} as Record<AppId, string>,
+  );
+
+export const appConfigDirLabelKeyMap: Record<AppId, string> = appList.reduce(
+  (acc, app) => {
+    acc[app.id] = app.configDirLabelKey;
+    return acc;
+  },
+  {} as Record<AppId, string>,
+);
+
+export const appConfigDirPlaceholderKeyMap: Record<AppId, string> =
+  appList.reduce(
+    (acc, app) => {
+      acc[app.id] = app.configDirPlaceholderKey;
+      return acc;
+    },
+    {} as Record<AppId, string>,
+  );
 
 export function getAppDefinition(appId: AppId): AppDefinition {
   return appRegistry[appId];

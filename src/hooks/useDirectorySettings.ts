@@ -1,19 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { homeDir, join } from "@tauri-apps/api/path";
-import { settingsApi, type AppId } from "@/lib/api";
+import type { AppId } from "@/lib/api";
+import {
+  appConfigDirSettingKeyMap,
+  appDefaultConfigDirNameMap,
+  appIds,
+} from "@/apps/registry";
+import { settingsApi } from "@/lib/api";
 import type { SettingsFormState } from "./useSettingsForm";
 
-type DirectoryKey = "appConfig" | "claude" | "codex" | "gemini" | "opencode";
+type DirectoryKey = "appConfig" | AppId;
 
-export interface ResolvedDirectories {
+export type ResolvedDirectories = Record<AppId, string> & {
   appConfig: string;
-  claude: string;
-  codex: string;
-  gemini: string;
-  opencode: string;
-}
+};
 
 const sanitizeDir = (value?: string | null): string | undefined => {
   if (!value) return undefined;
@@ -39,14 +41,7 @@ const computeDefaultConfigDir = async (
 ): Promise<string | undefined> => {
   try {
     const home = await homeDir();
-    const folder =
-      app === "claude"
-        ? ".claude"
-        : app === "codex"
-          ? ".codex"
-          : app === "gemini"
-            ? ".gemini"
-            : ".config/opencode";
+    const folder = appDefaultConfigDirNameMap[app];
     return await join(home, folder);
   } catch (error) {
     console.error(
@@ -65,6 +60,7 @@ export interface UseDirectorySettingsProps {
 export interface UseDirectorySettingsResult {
   appConfigDir?: string;
   resolvedDirs: ResolvedDirectories;
+  directoryOverrides: Record<AppId, string | undefined>;
   isLoading: boolean;
   initialAppConfigDir?: string;
   updateDirectory: (app: AppId, value?: string) => void;
@@ -74,9 +70,7 @@ export interface UseDirectorySettingsResult {
   resetDirectory: (app: AppId) => Promise<void>;
   resetAppConfigDir: () => Promise<void>;
   resetAllDirectories: (
-    claudeDir?: string,
-    codexDir?: string,
-    geminiDir?: string,
+    overrides?: Partial<Record<AppId, string | undefined>>,
   ) => void;
 }
 
@@ -125,49 +119,47 @@ export function useDirectorySettings({
       try {
         const [
           overrideRaw,
-          claudeDir,
-          codexDir,
-          geminiDir,
-          opencodeDir,
           defaultAppConfig,
-          defaultClaudeDir,
-          defaultCodexDir,
-          defaultGeminiDir,
-          defaultOpencodeDir,
+          appConfigDirs,
+          defaultConfigDirs,
         ] = await Promise.all([
           settingsApi.getAppConfigDirOverride(),
-          settingsApi.getConfigDir("claude"),
-          settingsApi.getConfigDir("codex"),
-          settingsApi.getConfigDir("gemini"),
-          settingsApi.getConfigDir("opencode"),
           computeDefaultAppConfigDir(),
-          computeDefaultConfigDir("claude"),
-          computeDefaultConfigDir("codex"),
-          computeDefaultConfigDir("gemini"),
-          computeDefaultConfigDir("opencode"),
+          Promise.all(appIds.map((appId) => settingsApi.getConfigDir(appId))),
+          Promise.all(appIds.map((appId) => computeDefaultConfigDir(appId))),
         ]);
 
         if (!active) return;
 
         const normalizedOverride = sanitizeDir(overrideRaw ?? undefined);
 
+        const defaults = appIds.reduce<Record<AppId, string>>(
+          (acc, appId, index) => {
+            acc[appId] = defaultConfigDirs[index] ?? "";
+            return acc;
+          },
+          {} as Record<AppId, string>,
+        );
+
         defaultsRef.current = {
           appConfig: defaultAppConfig ?? "",
-          claude: defaultClaudeDir ?? "",
-          codex: defaultCodexDir ?? "",
-          gemini: defaultGeminiDir ?? "",
-          opencode: defaultOpencodeDir ?? "",
+          ...defaults,
         };
 
         setAppConfigDir(normalizedOverride);
         initialAppConfigDirRef.current = normalizedOverride;
 
+        const resolved = appIds.reduce<Record<AppId, string>>(
+          (acc, appId, index) => {
+            acc[appId] = appConfigDirs[index] || defaultsRef.current[appId];
+            return acc;
+          },
+          {} as Record<AppId, string>,
+        );
+
         setResolvedDirs({
           appConfig: normalizedOverride ?? defaultsRef.current.appConfig,
-          claude: claudeDir || defaultsRef.current.claude,
-          codex: codexDir || defaultsRef.current.codex,
-          gemini: geminiDir || defaultsRef.current.gemini,
-          opencode: opencodeDir || defaultsRef.current.opencode,
+          ...resolved,
         });
       } catch (error) {
         console.error(
@@ -193,14 +185,11 @@ export function useDirectorySettings({
       if (key === "appConfig") {
         setAppConfigDir(sanitized);
       } else {
+        const settingsKey = appConfigDirSettingKeyMap[key];
         onUpdateSettings(
-          key === "claude"
-            ? { claudeConfigDir: sanitized }
-            : key === "codex"
-              ? { codexConfigDir: sanitized }
-              : key === "gemini"
-                ? { geminiConfigDir: sanitized }
-                : { opencodeConfigDir: sanitized },
+          ({
+            [settingsKey]: sanitized,
+          } as Partial<SettingsFormState>),
         );
       }
 
@@ -221,38 +210,18 @@ export function useDirectorySettings({
 
   const updateDirectory = useCallback(
     (app: AppId, value?: string) => {
-      updateDirectoryState(
-        app === "claude"
-          ? "claude"
-          : app === "codex"
-            ? "codex"
-            : app === "gemini"
-              ? "gemini"
-              : "opencode",
-        value,
-      );
+      updateDirectoryState(app, value);
     },
     [updateDirectoryState],
   );
 
   const browseDirectory = useCallback(
     async (app: AppId) => {
-      const key: DirectoryKey =
-        app === "claude"
-          ? "claude"
-          : app === "codex"
-            ? "codex"
-            : app === "gemini"
-              ? "gemini"
-              : "opencode";
+      const key: DirectoryKey = app;
+      const settingsKey = appConfigDirSettingKeyMap[app];
       const currentValue =
-        key === "claude"
-          ? (settings?.claudeConfigDir ?? resolvedDirs.claude)
-          : key === "codex"
-            ? (settings?.codexConfigDir ?? resolvedDirs.codex)
-            : key === "gemini"
-              ? (settings?.geminiConfigDir ?? resolvedDirs.gemini)
-              : (settings?.opencodeConfigDir ?? resolvedDirs.opencode);
+        (settings?.[settingsKey as keyof SettingsFormState] as string) ??
+        resolvedDirs[key];
 
       try {
         const picked = await settingsApi.selectConfigDirectory(currentValue);
@@ -293,14 +262,7 @@ export function useDirectorySettings({
 
   const resetDirectory = useCallback(
     async (app: AppId) => {
-      const key: DirectoryKey =
-        app === "claude"
-          ? "claude"
-          : app === "codex"
-            ? "codex"
-            : app === "gemini"
-              ? "gemini"
-              : "opencode";
+      const key: DirectoryKey = app;
       if (!defaultsRef.current[key]) {
         const fallback = await computeDefaultConfigDir(app);
         if (fallback) {
@@ -329,23 +291,37 @@ export function useDirectorySettings({
   }, [updateDirectoryState]);
 
   const resetAllDirectories = useCallback(
-    (claudeDir?: string, codexDir?: string, geminiDir?: string) => {
+    (overrides?: Partial<Record<AppId, string | undefined>>) => {
       setAppConfigDir(initialAppConfigDirRef.current);
+      const resolved = appIds.reduce<Record<AppId, string>>((acc, appId) => {
+        acc[appId] =
+          overrides?.[appId] ?? defaultsRef.current[appId] ?? "";
+        return acc;
+      }, {} as Record<AppId, string>);
+
       setResolvedDirs({
         appConfig:
           initialAppConfigDirRef.current ?? defaultsRef.current.appConfig,
-        claude: claudeDir ?? defaultsRef.current.claude,
-        codex: codexDir ?? defaultsRef.current.codex,
-        gemini: geminiDir ?? defaultsRef.current.gemini,
-        opencode: defaultsRef.current.opencode,
+        ...resolved,
       });
     },
     [],
   );
 
+  const directoryOverrides = useMemo(() => {
+    return appIds.reduce<Record<AppId, string | undefined>>((acc, appId) => {
+      const settingsKey = appConfigDirSettingKeyMap[appId];
+      acc[appId] = sanitizeDir(
+        settings?.[settingsKey as keyof SettingsFormState] as string,
+      );
+      return acc;
+    }, {} as Record<AppId, string | undefined>);
+  }, [settings]);
+
   return {
     appConfigDir,
     resolvedDirs,
+    directoryOverrides,
     isLoading,
     initialAppConfigDir: initialAppConfigDirRef.current,
     updateDirectory,

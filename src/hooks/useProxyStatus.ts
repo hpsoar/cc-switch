@@ -2,15 +2,17 @@
  * 代理服务状态管理 Hook
  */
 
+import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
-import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import type { AppId } from "@/lib/api";
 import type {
   ProxyStatus,
   ProxyServerInfo,
   ProxyTakeoverStatus,
 } from "@/types/proxy";
+import { appIds, appLabelMap } from "@/apps/registry";
 import { extractErrorMessage } from "@/utils/errorUtils";
 
 /**
@@ -97,18 +99,11 @@ export function useProxyStatus() {
       appType,
       enabled,
     }: {
-      appType: keyof ProxyTakeoverStatus;
+      appType: AppId;
       enabled: boolean;
     }) => invoke("set_proxy_takeover_for_app", { appType, enabled }),
     onSuccess: (_data, variables) => {
-      const appLabel =
-        variables.appType === "claude"
-          ? "Claude"
-          : variables.appType === "codex"
-            ? "Codex"
-            : variables.appType === "gemini"
-              ? "Gemini"
-              : "OpenCode";
+      const appLabel = appLabelMap[variables.appType];
 
       toast.success(
         variables.enabled
@@ -124,12 +119,13 @@ export function useProxyStatus() {
       queryClient.setQueryData<ProxyTakeoverStatus>(
         ["proxyTakeoverStatus"],
         (prev) => {
-          const next: ProxyTakeoverStatus = {
-            claude: prev?.claude ?? false,
-            codex: prev?.codex ?? false,
-            gemini: prev?.gemini ?? false,
-            opencode: prev?.opencode ?? false,
-          };
+          const next = appIds.reduce<ProxyTakeoverStatus>(
+            (acc, appId) => {
+              acc[appId] = prev?.[appId] ?? false;
+              return acc;
+            },
+            {} as ProxyTakeoverStatus,
+          );
           next[variables.appType] = variables.enabled;
           return next;
         },
@@ -199,11 +195,7 @@ export function useProxyStatus() {
     isRunning: status?.running || false,
     takeoverStatus,
     isTakeoverActive:
-      takeoverStatus?.claude ||
-      takeoverStatus?.codex ||
-      takeoverStatus?.gemini ||
-      takeoverStatus?.opencode ||
-      false,
+      appIds.some((appId) => takeoverStatus?.[appId]) || false,
 
     // 启动/停止（总开关）
     startProxyServer: startProxyServerMutation.mutateAsync,

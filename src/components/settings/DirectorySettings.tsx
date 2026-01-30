@@ -1,21 +1,23 @@
 import { useMemo } from "react";
 import { FolderSearch, Undo2 } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import type { AppId } from "@/lib/api";
 import type { ResolvedDirectories } from "@/hooks/useSettings";
+import {
+  appConfigDirLabelKeyMap,
+  appConfigDirPlaceholderKeyMap,
+  appList,
+} from "@/apps/registry";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface DirectorySettingsProps {
   appConfigDir?: string;
   resolvedDirs: ResolvedDirectories;
+  directoryOverrides: Record<AppId, string | undefined>;
   onAppConfigChange: (value?: string) => void;
   onBrowseAppConfig: () => Promise<void>;
   onResetAppConfig: () => Promise<void>;
-  claudeDir?: string;
-  codexDir?: string;
-  geminiDir?: string;
-  opencodeDir?: string;
   onDirectoryChange: (app: AppId, value?: string) => void;
   onBrowseDirectory: (app: AppId) => Promise<void>;
   onResetDirectory: (app: AppId) => Promise<void>;
@@ -24,13 +26,10 @@ interface DirectorySettingsProps {
 export function DirectorySettings({
   appConfigDir,
   resolvedDirs,
+  directoryOverrides,
   onAppConfigChange,
   onBrowseAppConfig,
   onResetAppConfig,
-  claudeDir,
-  codexDir,
-  geminiDir,
-  opencodeDir,
   onDirectoryChange,
   onBrowseDirectory,
   onResetDirectory,
@@ -87,49 +86,19 @@ export function DirectorySettings({
           </p>
         </header>
 
-        <DirectoryInput
-          label={t("settings.claudeConfigDir")}
-          description={undefined}
-          value={claudeDir}
-          resolvedValue={resolvedDirs.claude}
-          placeholder={t("settings.browsePlaceholderClaude")}
-          onChange={(val) => onDirectoryChange("claude", val)}
-          onBrowse={() => onBrowseDirectory("claude")}
-          onReset={() => onResetDirectory("claude")}
-        />
-
-        <DirectoryInput
-          label={t("settings.codexConfigDir")}
-          description={undefined}
-          value={codexDir}
-          resolvedValue={resolvedDirs.codex}
-          placeholder={t("settings.browsePlaceholderCodex")}
-          onChange={(val) => onDirectoryChange("codex", val)}
-          onBrowse={() => onBrowseDirectory("codex")}
-          onReset={() => onResetDirectory("codex")}
-        />
-
-        <DirectoryInput
-          label={t("settings.geminiConfigDir")}
-          description={undefined}
-          value={geminiDir}
-          resolvedValue={resolvedDirs.gemini}
-          placeholder={t("settings.browsePlaceholderGemini")}
-          onChange={(val) => onDirectoryChange("gemini", val)}
-          onBrowse={() => onBrowseDirectory("gemini")}
-          onReset={() => onResetDirectory("gemini")}
-        />
-
-        <DirectoryInput
-          label={t("settings.opencodeConfigDir")}
-          description={undefined}
-          value={opencodeDir}
-          resolvedValue={resolvedDirs.opencode}
-          placeholder={t("settings.browsePlaceholderOpencode")}
-          onChange={(val) => onDirectoryChange("opencode", val)}
-          onBrowse={() => onBrowseDirectory("opencode")}
-          onReset={() => onResetDirectory("opencode")}
-        />
+        {appList.map((app) => (
+          <DirectoryInput
+            key={app.id}
+            label={t(appConfigDirLabelKeyMap[app.id])}
+            description={undefined}
+            value={directoryOverrides[app.id]}
+            resolvedValue={resolvedDirs[app.id]}
+            placeholder={t(appConfigDirPlaceholderKeyMap[app.id])}
+            onChange={(val) => onDirectoryChange(app.id, val)}
+            onBrowse={() => onBrowseDirectory(app.id)}
+            onReset={() => onResetDirectory(app.id)}
+          />
+        ))}
       </section>
     </>
   );

@@ -1,12 +1,14 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { proxyApi } from "@/lib/api/proxy";
 import { toast } from "sonner";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import type { AppId } from "@/lib/api";
 import type {
   GlobalProxyConfig,
   AppProxyConfig,
   ProxyTakeoverStatus,
 } from "@/types/proxy";
+import { appIds } from "@/apps/registry";
+import { proxyApi } from "@/lib/api/proxy";
 
 // ========== 代理服务器状态 Hooks ==========
 
@@ -101,19 +103,20 @@ export function useSetProxyTakeoverForApp() {
       appType,
       enabled,
     }: {
-      appType: keyof ProxyTakeoverStatus;
+      appType: AppId;
       enabled: boolean;
     }) => proxyApi.setProxyTakeoverForApp(appType, enabled),
     onSuccess: (_data, variables) => {
       queryClient.setQueryData<ProxyTakeoverStatus>(
         ["proxyTakeoverStatus"],
         (prev) => {
-          const next: ProxyTakeoverStatus = {
-            claude: prev?.claude ?? false,
-            codex: prev?.codex ?? false,
-            gemini: prev?.gemini ?? false,
-            opencode: prev?.opencode ?? false,
-          };
+          const next = appIds.reduce<ProxyTakeoverStatus>(
+            (acc, appId) => {
+              acc[appId] = prev?.[appId] ?? false;
+              return acc;
+            },
+            {} as ProxyTakeoverStatus,
+          );
           next[variables.appType] = variables.enabled;
           return next;
         },

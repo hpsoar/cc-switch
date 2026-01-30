@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from "react";
+import { Edit3, Search, Server, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { Server, Search, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
+import type { AppId } from "@/lib/api/types";
+import type { McpServer } from "@/types";
+import { appIds } from "@/apps/registry";
+import { settingsApi } from "@/lib/api";
 import {
   useAllMcpServers,
   useOpenCodeMcpStatus,
@@ -11,14 +13,12 @@ import {
   useDeleteMcpServer,
   useImportMcpFromApps,
 } from "@/hooks/useMcp";
-import type { McpServer } from "@/types";
-import type { AppId } from "@/lib/api/types";
-import McpFormModal from "./McpFormModal";
-import { ConfirmDialog } from "../ConfirmDialog";
-import { Edit3, Trash2 } from "lucide-react";
-import { settingsApi } from "@/lib/api";
 import { mcpPresets } from "@/config/mcpPresets";
-import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { ConfirmDialog } from "../ConfirmDialog";
+import McpFormModal from "./McpFormModal";
 
 interface UnifiedMcpPanelProps {
   onOpenChange: (open: boolean) => void;
@@ -315,7 +315,7 @@ const UnifiedMcpPanel = React.forwardRef<
           }
           existingIds={serversMap ? Object.keys(serversMap) : []}
           defaultFormat="json"
-          defaultEnabledApps={["claude", "codex", "gemini", "opencode"]}
+          defaultEnabledApps={appIds}
           onSave={async () => {
             setIsFormOpen(false);
             setEditingId(null);

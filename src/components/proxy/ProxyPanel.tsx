@@ -2,30 +2,30 @@ import { useState, useEffect } from "react";
 import {
   Activity,
   Clock,
-  TrendingUp,
-  Server,
   ListOrdered,
-  Save,
   Loader2,
+  Save,
+  Server,
+  TrendingUp,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { useProxyStatus } from "@/hooks/useProxyStatus";
 import { toast } from "sonner";
-import { useFailoverQueue } from "@/lib/query/failover";
-import { ProviderHealthBadge } from "@/components/providers/ProviderHealthBadge";
-import { useProviderHealth } from "@/lib/query/failover";
+import { useTranslation } from "react-i18next";
+import type { AppId } from "@/lib/api";
+import type { ProxyStatus } from "@/types/proxy";
+import { appIds, appLabelMap } from "@/apps/registry";
+import { useProxyStatus } from "@/hooks/useProxyStatus";
+import { useFailoverQueue, useProviderHealth } from "@/lib/query/failover";
 import {
   useProxyTakeoverStatus,
   useSetProxyTakeoverForApp,
   useGlobalProxyConfig,
   useUpdateGlobalProxyConfig,
 } from "@/lib/query/proxy";
-import type { ProxyStatus } from "@/types/proxy";
-import type { AppId } from "@/lib/api";
-import { useTranslation } from "react-i18next";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { ProviderHealthBadge } from "@/components/providers/ProviderHealthBadge";
 
 export function ProxyPanel() {
   const { t } = useTranslation();
@@ -58,13 +58,8 @@ export function ProxyPanel() {
   const { data: geminiQueue = [] } = useFailoverQueue("gemini");
   const { data: openCodeQueue = [] } = useFailoverQueue("opencode");
 
-  const appLabels: Record<AppId, string> = {
-    claude: "Claude",
-    codex: "Codex",
-    gemini: "Gemini",
-    opencode: "OpenCode",
-  };
-  const takeoverApps: AppId[] = ["claude", "codex", "gemini", "opencode"];
+  const appLabels = appLabelMap;
+  const takeoverApps: AppId[] = appIds;
 
   const handleTakeoverChange = async (appType: AppId, enabled: boolean) => {
     try {

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import type { Prompt, AppId } from "@/lib/api";
+import { appPromptFilenameMap } from "@/apps/registry";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import { FullScreenPanel } from "@/components/common/FullScreenPanel";
-import type { Prompt, AppId } from "@/lib/api";
 
 interface PromptFormPanelProps {
   appId: AppId;
@@ -24,13 +25,7 @@ const PromptFormPanel: React.FC<PromptFormPanelProps> = ({
 }) => {
   const { t } = useTranslation();
   const appName = t(`apps.${appId}`);
-  const filenameMap: Record<AppId, string> = {
-    claude: "CLAUDE.md",
-    codex: "AGENTS.md",
-    gemini: "GEMINI.md",
-    opencode: "AGENTS.md",
-  };
-  const filename = filenameMap[appId];
+  const filename = appPromptFilenameMap[appId];
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [content, setContent] = useState("");

@@ -1,21 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertCircle, Loader2, Plus, Save, X, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Zap, Loader2, Plus, X, AlertCircle, Save } from "lucide-react";
 import type { AppId } from "@/lib/api";
+import type { CustomEndpoint, EndpointCandidate } from "@/types";
+import { appEndpointTimeoutMap } from "@/apps/registry";
 import { vscodeApi } from "@/lib/api/vscode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FullScreenPanel } from "@/components/common/FullScreenPanel";
-import type { CustomEndpoint, EndpointCandidate } from "@/types";
 
 // 端点测速超时配置（秒）
-const ENDPOINT_TIMEOUT_SECS = {
-  codex: 12,
-  claude: 8,
-  gemini: 8,
-  opencode: 8,
-} as const;
-
 interface TestResult {
   url: string;
   latency: number | null;
@@ -326,7 +320,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
 
     try {
       const results = await vscodeApi.testApiEndpoints(urls, {
-        timeoutSecs: ENDPOINT_TIMEOUT_SECS[appId],
+        timeoutSecs: appEndpointTimeoutMap[appId],
       });
 
       const resultMap = new Map(

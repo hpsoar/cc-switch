@@ -1,20 +1,21 @@
 import React, { useMemo, useState } from "react";
+import { ExternalLink, Sparkles, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Sparkles, Trash2, ExternalLink } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
+
+import type { AppType, InstalledSkill } from "@/hooks/useSkills";
+import { appList } from "@/apps/registry";
 import {
   useInstalledSkills,
   useToggleSkillApp,
   useUninstallSkill,
   useScanUnmanagedSkills,
   useImportSkillsFromApps,
-  type InstalledSkill,
-  type AppType,
 } from "@/hooks/useSkills";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { settingsApi } from "@/lib/api";
-import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 
 interface UnifiedSkillsPanelProps {
   onOpenDiscovery: () => void;
@@ -52,12 +53,20 @@ const UnifiedSkillsPanel = React.forwardRef<
 
   // Count enabled skills per app
   const enabledCounts = useMemo(() => {
-    const counts = { claude: 0, codex: 0, gemini: 0 };
+    const counts = appList.reduce(
+      (acc, app) => {
+        acc[app.id] = 0;
+        return acc;
+      },
+      {} as Record<AppType, number>,
+    );
     if (!skills) return counts;
     skills.forEach((skill) => {
-      if (skill.apps.claude) counts.claude++;
-      if (skill.apps.codex) counts.codex++;
-      if (skill.apps.gemini) counts.gemini++;
+      appList.forEach((app) => {
+        if (skill.apps[app.id]) {
+          counts[app.id] += 1;
+        }
+      });
     });
     return counts;
   }, [skills]);
@@ -137,9 +146,12 @@ const UnifiedSkillsPanel = React.forwardRef<
       <div className="flex-shrink-0 py-4 glass rounded-xl border border-white/10 mb-4 px-6">
         <div className="text-sm text-muted-foreground">
           {t("skills.installed", { count: skills?.length || 0 })} ·{" "}
-          {t("skills.apps.claude")}: {enabledCounts.claude} ·{" "}
-          {t("skills.apps.codex")}: {enabledCounts.codex} ·{" "}
-          {t("skills.apps.gemini")}: {enabledCounts.gemini}
+          {appList.map((app, index) => (
+            <span key={app.id}>
+              {index > 0 ? " · " : ""}
+              {t(`skills.apps.${app.id}`)}: {enabledCounts[app.id]}
+            </span>
+          ))}
         </div>
       </div>
 
@@ -261,53 +273,26 @@ const InstalledSkillListItem: React.FC<InstalledSkillListItemProps> = ({
 
       {/* 中间：应用开关 */}
       <div className="flex flex-col gap-2 flex-shrink-0 min-w-[120px]">
-        <div className="flex items-center justify-between gap-3">
-          <label
-            htmlFor={`${skill.id}-claude`}
-            className="text-sm text-foreground/80 cursor-pointer"
+        {appList.map((app) => (
+          <div
+            key={app.id}
+            className="flex items-center justify-between gap-3"
           >
-            {t("skills.apps.claude")}
-          </label>
-          <Switch
-            id={`${skill.id}-claude`}
-            checked={skill.apps.claude}
-            onCheckedChange={(checked: boolean) =>
-              onToggleApp(skill.id, "claude", checked)
-            }
-          />
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <label
-            htmlFor={`${skill.id}-codex`}
-            className="text-sm text-foreground/80 cursor-pointer"
-          >
-            {t("skills.apps.codex")}
-          </label>
-          <Switch
-            id={`${skill.id}-codex`}
-            checked={skill.apps.codex}
-            onCheckedChange={(checked: boolean) =>
-              onToggleApp(skill.id, "codex", checked)
-            }
-          />
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <label
-            htmlFor={`${skill.id}-gemini`}
-            className="text-sm text-foreground/80 cursor-pointer"
-          >
-            {t("skills.apps.gemini")}
-          </label>
-          <Switch
-            id={`${skill.id}-gemini`}
-            checked={skill.apps.gemini}
-            onCheckedChange={(checked: boolean) =>
-              onToggleApp(skill.id, "gemini", checked)
-            }
-          />
-        </div>
+            <label
+              htmlFor={`${skill.id}-${app.id}`}
+              className="text-sm text-foreground/80 cursor-pointer"
+            >
+              {t(`skills.apps.${app.id}`)}
+            </label>
+            <Switch
+              id={`${skill.id}-${app.id}`}
+              checked={skill.apps[app.id]}
+              onCheckedChange={(checked: boolean) =>
+                onToggleApp(skill.id, app.id, checked)
+              }
+            />
+          </div>
+        ))}
       </div>
 
       {/* 右侧：删除按钮 */}

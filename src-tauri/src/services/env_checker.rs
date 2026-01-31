@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 #[cfg(not(target_os = "windows"))]
 use std::fs;
+use std::str::FromStr;
+
+use crate::app_config::AppType;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -33,12 +36,9 @@ pub fn check_env_conflicts(app: &str) -> Result<Vec<EnvConflict>, String> {
 
 /// Get relevant keywords for each app
 fn get_keywords_for_app(app: &str) -> Vec<&str> {
-    match app.to_lowercase().as_str() {
-        "claude" => vec!["ANTHROPIC"],
-        "codex" => vec!["OPENAI"],
-        "gemini" => vec!["GEMINI", "GOOGLE_GEMINI"],
-        _ => vec![],
-    }
+    AppType::from_str(app)
+        .map(|app_type| app_type.env_conflict_keywords().to_vec())
+        .unwrap_or_default()
 }
 
 /// Check system environment variables (Windows Registry or Unix env)
@@ -163,6 +163,7 @@ mod tests {
             get_keywords_for_app("gemini"),
             vec!["GEMINI", "GOOGLE_GEMINI"]
         );
+        assert_eq!(get_keywords_for_app("opencode"), Vec::<&str>::new());
         assert_eq!(get_keywords_for_app("unknown"), Vec::<&str>::new());
     }
 }

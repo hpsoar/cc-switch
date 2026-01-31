@@ -219,23 +219,23 @@ pub fn sync_current_to_live(state: &AppState) -> Result<(), AppError> {
     // OpenCode uses multi-provider architecture - sync all providers
     sync_all_opencode_providers(state)?;
 
-    for app_type in [AppType::Claude, AppType::Codex, AppType::Gemini] {
+    for app_type in AppType::single_provider_apps() {
         let current_id =
-            match crate::settings::get_effective_current_provider(&state.db, &app_type)? {
+            match crate::settings::get_effective_current_provider(&state.db, app_type)? {
                 Some(id) => id,
                 None => continue,
             };
 
         let providers = state.db.get_all_providers(app_type.as_str())?;
         if let Some(provider) = providers.get(&current_id) {
-            write_live_snapshot(&app_type, provider)?;
+            write_live_snapshot(app_type, provider)?;
         }
     }
 
     McpService::sync_all_enabled(state)?;
 
-    for app_type in [AppType::Claude, AppType::Codex, AppType::Gemini] {
-        if let Err(e) = crate::services::skill::SkillService::sync_to_app(&state.db, &app_type) {
+    for app_type in AppType::single_provider_apps() {
+        if let Err(e) = crate::services::skill::SkillService::sync_to_app(&state.db, app_type) {
             log::warn!("同步 Skill 到 {app_type:?} 失败: {e}");
         }
     }

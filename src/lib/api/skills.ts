@@ -7,12 +7,7 @@ import type { AppId } from "@/lib/api/types";
 export type AppType = AppId;
 
 /** Skill 应用启用状态 */
-export interface SkillApps {
-  claude: boolean;
-  codex: boolean;
-  gemini: boolean;
-  opencode: boolean;
-}
+export type SkillApps = Record<AppType, boolean>;
 
 /** 已安装的 Skill（v3.10.0+ 统一结构） */
 export interface InstalledSkill {

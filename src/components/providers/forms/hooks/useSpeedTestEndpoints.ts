@@ -1,9 +1,12 @@
 import { useMemo } from "react";
+
 import type { AppId } from "@/lib/api";
 import type { ProviderPreset } from "@/config/claudeProviderPresets";
 import type { CodexProviderPreset } from "@/config/codexProviderPresets";
 import type { OpenCodeProviderPreset } from "@/config/opencodeProviderPresets";
 import type { ProviderMeta, EndpointCandidate } from "@/types";
+
+import { getProviderFormAppFeatures } from "@/apps/providerFormAdapters";
 
 type PresetEntry = {
   id: string;
@@ -41,9 +44,19 @@ export function useSpeedTestEndpoints({
   codexBaseUrl,
   initialData,
 }: UseSpeedTestEndpointsProps) {
+  const appFeatures = useMemo(
+    () => getProviderFormAppFeatures(appId),
+    [appId],
+  );
+
   const claudeEndpoints = useMemo<EndpointCandidate[]>(() => {
     // Reuse this branch for Claude and Gemini (non-Codex)
-    if (appId !== "claude" && appId !== "gemini") return [];
+    if (
+      appFeatures.speedTestMode !== "claude" &&
+      appFeatures.speedTestMode !== "gemini"
+    ) {
+      return [];
+    }
 
     const map = new Map<string, EndpointCandidate>();
     // 候选端点标记为 isCustom: false，表示来自预设或配置
@@ -102,10 +115,16 @@ export function useSpeedTestEndpoints({
     }
 
     return Array.from(map.values());
-  }, [appId, baseUrl, initialData, selectedPresetId, presetEntries]);
+  }, [
+    appFeatures.speedTestMode,
+    baseUrl,
+    initialData,
+    selectedPresetId,
+    presetEntries,
+  ]);
 
   const codexEndpoints = useMemo<EndpointCandidate[]>(() => {
-    if (appId !== "codex") return [];
+    if (appFeatures.speedTestMode !== "codex") return [];
 
     const map = new Map<string, EndpointCandidate>();
     // 候选端点标记为 isCustom: false，表示来自预设或配置
@@ -156,7 +175,20 @@ export function useSpeedTestEndpoints({
     }
 
     return Array.from(map.values());
-  }, [appId, codexBaseUrl, initialData, selectedPresetId, presetEntries]);
+  }, [
+    appFeatures.speedTestMode,
+    codexBaseUrl,
+    initialData,
+    selectedPresetId,
+    presetEntries,
+  ]);
 
-  return appId === "codex" ? codexEndpoints : claudeEndpoints;
+  if (appFeatures.speedTestMode === "codex") return codexEndpoints;
+  if (
+    appFeatures.speedTestMode === "claude" ||
+    appFeatures.speedTestMode === "gemini"
+  ) {
+    return claudeEndpoints;
+  }
+  return [];
 }

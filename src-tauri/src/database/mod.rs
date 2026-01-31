@@ -24,6 +24,7 @@
 //! ```
 
 mod backup;
+mod app_columns;
 mod dao;
 mod migration;
 mod schema;

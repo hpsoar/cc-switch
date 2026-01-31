@@ -2,6 +2,7 @@
 //!
 //! 处理代理配置、Provider健康状态和使用统计的数据库操作
 
+use crate::app_config::AppType;
 use crate::error::AppError;
 use crate::proxy::types::*;
 
@@ -181,10 +182,10 @@ impl Database {
     async fn init_proxy_config_rows(&self) -> Result<(), AppError> {
         let conn = lock_conn!(self.conn);
 
-        for app_type in &["claude", "codex", "gemini", "opencode"] {
+        for app_type in AppType::all() {
             conn.execute(
                 "INSERT OR IGNORE INTO proxy_config (app_type) VALUES (?1)",
-                [app_type],
+                [app_type.as_str()],
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
         }

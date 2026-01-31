@@ -10,6 +10,7 @@ import type {
   UniversalProviderApps,
   UniversalProviderModels,
 } from "@/types";
+import { getDefaultUniversalProviderApps } from "@/apps/universalProviderAdapters";
 
 /**
  * 统一供应商预设接口
@@ -61,12 +62,7 @@ export const universalProviderPresets: UniversalProviderPreset[] = [
   {
     name: "NewAPI",
     providerType: "newapi",
-    defaultApps: {
-      claude: true,
-      codex: true,
-      gemini: true,
-      opencode: true,
-    },
+    defaultApps: getDefaultUniversalProviderApps(true),
     defaultModels: NEWAPI_DEFAULT_MODELS,
     websiteUrl: "https://www.newapi.pro",
     icon: "newapi",
@@ -77,12 +73,7 @@ export const universalProviderPresets: UniversalProviderPreset[] = [
   {
     name: "自定义网关",
     providerType: "custom_gateway",
-    defaultApps: {
-      claude: true,
-      codex: true,
-      gemini: true,
-      opencode: true,
-    },
+    defaultApps: getDefaultUniversalProviderApps(true),
     defaultModels: NEWAPI_DEFAULT_MODELS,
     icon: "openai",
     iconColor: "#6366F1",

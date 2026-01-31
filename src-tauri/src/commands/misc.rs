@@ -89,13 +89,17 @@ pub struct ToolVersion {
 
 #[tauri::command]
 pub async fn get_tool_versions() -> Result<Vec<ToolVersion>, String> {
-    let tools = vec!["claude", "codex", "gemini"];
+    let tools = crate::app_config::APP_REGISTRY
+        .iter()
+        .filter(|entry| entry.cli_npm_package.is_some())
+        .collect::<Vec<_>>();
     let mut results = Vec::new();
 
     // 使用全局 HTTP 客户端（已包含代理配置）
     let client = crate::proxy::http_client::get();
 
-    for tool in tools {
+    for entry in tools {
+        let tool = entry.id;
         // 1. 获取本地版本 - 先尝试直接执行，失败则扫描常见路径
         let (local_version, local_error) = if let Some(distro) = wsl_distro_for_tool(tool) {
             try_get_version_wsl(tool, &distro)
@@ -112,11 +116,9 @@ pub async fn get_tool_versions() -> Result<Vec<ToolVersion>, String> {
         };
 
         // 2. 获取远程最新版本
-        let latest_version = match tool {
-            "claude" => fetch_npm_latest_version(&client, "@anthropic-ai/claude-code").await,
-            "codex" => fetch_npm_latest_version(&client, "@openai/codex").await,
-            "gemini" => fetch_npm_latest_version(&client, "@google/gemini-cli").await,
-            _ => None,
+        let latest_version = match entry.cli_npm_package {
+            Some(package) => fetch_npm_latest_version(&client, package).await,
+            None => None,
         };
 
         results.push(ToolVersion {
@@ -224,7 +226,7 @@ fn try_get_version_wsl(tool: &str, distro: &str) -> (Option<String>, Option<Stri
 
     // 防御性断言：tool 只能是预定义的值
     debug_assert!(
-        ["claude", "codex", "gemini"].contains(&tool),
+        is_known_cli_tool(tool),
         "unexpected tool name: {tool}"
     );
 
@@ -388,14 +390,16 @@ fn scan_cli_version(tool: &str) -> (Option<String>, Option<String>) {
 }
 
 fn wsl_distro_for_tool(tool: &str) -> Option<String> {
-    let override_dir = match tool {
-        "claude" => crate::settings::get_claude_override_dir(),
-        "codex" => crate::settings::get_codex_override_dir(),
-        "gemini" => crate::settings::get_gemini_override_dir(),
-        _ => None,
-    }?;
+    let app = AppType::from_str(tool).ok()?;
+    let override_dir = crate::settings::get_override_dir_for_app(&app)?;
 
     wsl_distro_from_path(&override_dir)
+}
+
+fn is_known_cli_tool(tool: &str) -> bool {
+    crate::app_config::APP_REGISTRY
+        .iter()
+        .any(|entry| entry.cli_npm_package.is_some() && entry.id == tool)
 }
 
 /// 从 UNC 路径中提取 WSL 发行版名称
@@ -480,30 +484,16 @@ fn extract_env_vars_from_config(
         }
 
         // 处理 base_url: 根据应用类型添加对应的环境变量
-        let base_url_key = match app_type {
-            AppType::Claude => Some("ANTHROPIC_BASE_URL"),
-            AppType::Gemini => Some("GOOGLE_GEMINI_BASE_URL"),
-            _ => None,
-        };
-
-        if let Some(key) = base_url_key {
+        if let Some(key) = app_type.env_base_url_key() {
             if let Some(url_str) = env.get(key).and_then(|v| v.as_str()) {
                 env_vars.push((key.to_string(), url_str.to_string()));
             }
         }
     }
 
-    // Codex 使用 auth 字段转换为 OPENAI_API_KEY
-    if *app_type == AppType::Codex {
-        if let Some(auth) = obj.get("auth").and_then(|v| v.as_str()) {
-            env_vars.push(("OPENAI_API_KEY".to_string(), auth.to_string()));
-        }
-    }
-
-    // Gemini 使用 api_key 字段转换为 GEMINI_API_KEY
-    if *app_type == AppType::Gemini {
-        if let Some(api_key) = obj.get("api_key").and_then(|v| v.as_str()) {
-            env_vars.push(("GEMINI_API_KEY".to_string(), api_key.to_string()));
+    if let Some((config_key, env_key)) = app_type.config_api_key_alias() {
+        if let Some(value) = obj.get(config_key).and_then(|v| v.as_str()) {
+            env_vars.push((env_key.to_string(), value.to_string()));
         }
     }
 

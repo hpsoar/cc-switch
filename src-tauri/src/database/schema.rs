@@ -2,10 +2,16 @@
 //!
 //! 负责数据库表结构的创建和版本迁移。
 
+use super::app_columns::{MCP_ENABLED_COLUMNS, SKILL_ENABLED_COLUMNS};
 use super::{lock_conn, Database, SCHEMA_VERSION};
+use crate::app_config::APP_TYPE_IDS;
 use crate::error::AppError;
 use chrono::Utc;
 use rusqlite::{Connection, OptionalExtension};
+
+fn app_type_check_sql() -> String {
+    APP_TYPE_IDS.join(\"','\")
+}
 
 impl Database {
     /// 创建所有数据库表
@@ -54,15 +60,15 @@ impl Database {
         .map_err(|e| AppError::Database(e.to_string()))?;
 
         // 3. MCP Servers 表
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS mcp_servers (
-            id TEXT PRIMARY KEY, name TEXT NOT NULL, server_config TEXT NOT NULL,
-            description TEXT, homepage TEXT, docs TEXT, tags TEXT NOT NULL DEFAULT '[]',
-            enabled_claude BOOLEAN NOT NULL DEFAULT 0, enabled_codex BOOLEAN NOT NULL DEFAULT 0,
-            enabled_gemini BOOLEAN NOT NULL DEFAULT 0, enabled_opencode BOOLEAN NOT NULL DEFAULT 0
-        )",
-            [],
-        )
+        let mcp_enabled_columns = MCP_ENABLED_COLUMNS
+            .iter()
+            .map(|column| format!("{column} BOOLEAN NOT NULL DEFAULT 0"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let mcp_table_sql = format!(
+            \"CREATE TABLE IF NOT EXISTS mcp_servers (\n            id TEXT PRIMARY KEY, name TEXT NOT NULL, server_config TEXT NOT NULL,\n            description TEXT, homepage TEXT, docs TEXT, tags TEXT NOT NULL DEFAULT '[]',\n            {mcp_enabled_columns}\n        )\"
+        );
+        conn.execute(&mcp_table_sql, [])
         .map_err(|e| AppError::Database(e.to_string()))?;
 
         // 4. Prompts 表
@@ -73,23 +79,15 @@ impl Database {
         )", []).map_err(|e| AppError::Database(e.to_string()))?;
 
         // 5. Skills 表（v3.10.0+ 统一结构）
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS skills (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            description TEXT,
-            directory TEXT NOT NULL,
-            repo_owner TEXT,
-            repo_name TEXT,
-            repo_branch TEXT DEFAULT 'main',
-            readme_url TEXT,
-            enabled_claude BOOLEAN NOT NULL DEFAULT 0,
-            enabled_codex BOOLEAN NOT NULL DEFAULT 0,
-            enabled_gemini BOOLEAN NOT NULL DEFAULT 0,
-            installed_at INTEGER NOT NULL DEFAULT 0
-        )",
-            [],
-        )
+        let skill_enabled_columns = SKILL_ENABLED_COLUMNS
+            .iter()
+            .map(|column| format!("{column} BOOLEAN NOT NULL DEFAULT 0"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let skills_table_sql = format!(
+            \"CREATE TABLE IF NOT EXISTS skills (\n            id TEXT PRIMARY KEY,\n            name TEXT NOT NULL,\n            description TEXT,\n            directory TEXT NOT NULL,\n            repo_owner TEXT,\n            repo_name TEXT,\n            repo_branch TEXT DEFAULT 'main',\n            readme_url TEXT,\n            {skill_enabled_columns},\n            installed_at INTEGER NOT NULL DEFAULT 0\n        )\"
+        );
+        conn.execute(&skills_table_sql, [])
         .map_err(|e| AppError::Database(e.to_string()))?;
 
         // 6. Skill Repos 表
@@ -110,18 +108,12 @@ impl Database {
         .map_err(|e| AppError::Database(e.to_string()))?;
 
         // 8. Proxy Config 表（三行结构，app_type 主键）
-        conn.execute("CREATE TABLE IF NOT EXISTS proxy_config (
-            app_type TEXT PRIMARY KEY CHECK (app_type IN ('claude','codex','gemini','opencode')),
-            proxy_enabled INTEGER NOT NULL DEFAULT 0, listen_address TEXT NOT NULL DEFAULT '127.0.0.1',
-            listen_port INTEGER NOT NULL DEFAULT 15721, enable_logging INTEGER NOT NULL DEFAULT 1,
-            enabled INTEGER NOT NULL DEFAULT 0, auto_failover_enabled INTEGER NOT NULL DEFAULT 0,
-            max_retries INTEGER NOT NULL DEFAULT 3, streaming_first_byte_timeout INTEGER NOT NULL DEFAULT 60,
-            streaming_idle_timeout INTEGER NOT NULL DEFAULT 120, non_streaming_timeout INTEGER NOT NULL DEFAULT 600,
-            circuit_failure_threshold INTEGER NOT NULL DEFAULT 4, circuit_success_threshold INTEGER NOT NULL DEFAULT 2,
-            circuit_timeout_seconds INTEGER NOT NULL DEFAULT 60, circuit_error_rate_threshold REAL NOT NULL DEFAULT 0.6,
-            circuit_min_requests INTEGER NOT NULL DEFAULT 10,
-            created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-        )", []).map_err(|e| AppError::Database(e.to_string()))?;
+        let app_type_check = app_type_check_sql();
+        let proxy_table_sql = format!(
+            \"CREATE TABLE IF NOT EXISTS proxy_config (\n            app_type TEXT PRIMARY KEY CHECK (app_type IN ('{app_type_check}')),\n            proxy_enabled INTEGER NOT NULL DEFAULT 0, listen_address TEXT NOT NULL DEFAULT '127.0.0.1',\n            listen_port INTEGER NOT NULL DEFAULT 15721, enable_logging INTEGER NOT NULL DEFAULT 1,\n            enabled INTEGER NOT NULL DEFAULT 0, auto_failover_enabled INTEGER NOT NULL DEFAULT 0,\n            max_retries INTEGER NOT NULL DEFAULT 3, streaming_first_byte_timeout INTEGER NOT NULL DEFAULT 60,\n            streaming_idle_timeout INTEGER NOT NULL DEFAULT 120, non_streaming_timeout INTEGER NOT NULL DEFAULT 600,\n            circuit_failure_threshold INTEGER NOT NULL DEFAULT 4, circuit_success_threshold INTEGER NOT NULL DEFAULT 2,\n            circuit_timeout_seconds INTEGER NOT NULL DEFAULT 60, circuit_error_rate_threshold REAL NOT NULL DEFAULT 0.6,\n            circuit_min_requests INTEGER NOT NULL DEFAULT 10,\n            created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))\n        )\"
+        );
+        conn.execute(&proxy_table_sql, [])
+            .map_err(|e| AppError::Database(e.to_string()))?;
 
         // 初始化三行数据（每应用不同默认值）
         //
@@ -706,18 +698,11 @@ impl Database {
 
         // 创建新表
         conn.execute("DROP TABLE IF EXISTS proxy_config_new", [])?;
-        conn.execute("CREATE TABLE proxy_config_new (
-            app_type TEXT PRIMARY KEY CHECK (app_type IN ('claude','codex','gemini','opencode')),
-            proxy_enabled INTEGER NOT NULL DEFAULT 0, listen_address TEXT NOT NULL DEFAULT '127.0.0.1',
-            listen_port INTEGER NOT NULL DEFAULT 15721, enable_logging INTEGER NOT NULL DEFAULT 1,
-            enabled INTEGER NOT NULL DEFAULT 0, auto_failover_enabled INTEGER NOT NULL DEFAULT 0,
-            max_retries INTEGER NOT NULL DEFAULT 3, streaming_first_byte_timeout INTEGER NOT NULL DEFAULT 60,
-            streaming_idle_timeout INTEGER NOT NULL DEFAULT 120, non_streaming_timeout INTEGER NOT NULL DEFAULT 600,
-            circuit_failure_threshold INTEGER NOT NULL DEFAULT 4, circuit_success_threshold INTEGER NOT NULL DEFAULT 2,
-            circuit_timeout_seconds INTEGER NOT NULL DEFAULT 60, circuit_error_rate_threshold REAL NOT NULL DEFAULT 0.6,
-            circuit_min_requests INTEGER NOT NULL DEFAULT 10,
-            created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-        )", [])?;
+        let app_type_check = app_type_check_sql();
+        let proxy_table_sql = format!(
+            \"CREATE TABLE proxy_config_new (\n            app_type TEXT PRIMARY KEY CHECK (app_type IN ('{app_type_check}')),\n            proxy_enabled INTEGER NOT NULL DEFAULT 0, listen_address TEXT NOT NULL DEFAULT '127.0.0.1',\n            listen_port INTEGER NOT NULL DEFAULT 15721, enable_logging INTEGER NOT NULL DEFAULT 1,\n            enabled INTEGER NOT NULL DEFAULT 0, auto_failover_enabled INTEGER NOT NULL DEFAULT 0,\n            max_retries INTEGER NOT NULL DEFAULT 3, streaming_first_byte_timeout INTEGER NOT NULL DEFAULT 60,\n            streaming_idle_timeout INTEGER NOT NULL DEFAULT 120, non_streaming_timeout INTEGER NOT NULL DEFAULT 600,\n            circuit_failure_threshold INTEGER NOT NULL DEFAULT 4, circuit_success_threshold INTEGER NOT NULL DEFAULT 2,\n            circuit_timeout_seconds INTEGER NOT NULL DEFAULT 60, circuit_error_rate_threshold REAL NOT NULL DEFAULT 0.6,\n            circuit_min_requests INTEGER NOT NULL DEFAULT 10,\n            created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))\n        )\"
+        );
+        conn.execute(&proxy_table_sql, [])?;
 
         // 插入三行配置
         for (app, takeover, failover, retries, fb, idle, cb_f, cb_s, cb_t, cb_r, cb_m) in apps {
@@ -994,22 +979,12 @@ impl Database {
 
         conn.execute("DROP TABLE IF EXISTS proxy_config_new", [])
             .map_err(|e| AppError::Database(e.to_string()))?;
-        conn.execute(
-            "CREATE TABLE proxy_config_new (
-                app_type TEXT PRIMARY KEY CHECK (app_type IN ('claude','codex','gemini','opencode')),
-                proxy_enabled INTEGER NOT NULL DEFAULT 0, listen_address TEXT NOT NULL DEFAULT '127.0.0.1',
-                listen_port INTEGER NOT NULL DEFAULT 15721, enable_logging INTEGER NOT NULL DEFAULT 1,
-                enabled INTEGER NOT NULL DEFAULT 0, auto_failover_enabled INTEGER NOT NULL DEFAULT 0,
-                max_retries INTEGER NOT NULL DEFAULT 3, streaming_first_byte_timeout INTEGER NOT NULL DEFAULT 60,
-                streaming_idle_timeout INTEGER NOT NULL DEFAULT 120, non_streaming_timeout INTEGER NOT NULL DEFAULT 600,
-                circuit_failure_threshold INTEGER NOT NULL DEFAULT 4, circuit_success_threshold INTEGER NOT NULL DEFAULT 2,
-                circuit_timeout_seconds INTEGER NOT NULL DEFAULT 60, circuit_error_rate_threshold REAL NOT NULL DEFAULT 0.6,
-                circuit_min_requests INTEGER NOT NULL DEFAULT 10,
-                created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-            )",
-            [],
-        )
-        .map_err(|e| AppError::Database(format!("创建 proxy_config_new 失败: {e}")))?;
+        let app_type_check = app_type_check_sql();
+        let proxy_table_sql = format!(
+            \"CREATE TABLE proxy_config_new (\n                app_type TEXT PRIMARY KEY CHECK (app_type IN ('{app_type_check}')),\n                proxy_enabled INTEGER NOT NULL DEFAULT 0, listen_address TEXT NOT NULL DEFAULT '127.0.0.1',\n                listen_port INTEGER NOT NULL DEFAULT 15721, enable_logging INTEGER NOT NULL DEFAULT 1,\n                enabled INTEGER NOT NULL DEFAULT 0, auto_failover_enabled INTEGER NOT NULL DEFAULT 0,\n                max_retries INTEGER NOT NULL DEFAULT 3, streaming_first_byte_timeout INTEGER NOT NULL DEFAULT 60,\n                streaming_idle_timeout INTEGER NOT NULL DEFAULT 120, non_streaming_timeout INTEGER NOT NULL DEFAULT 600,\n                circuit_failure_threshold INTEGER NOT NULL DEFAULT 4, circuit_success_threshold INTEGER NOT NULL DEFAULT 2,\n                circuit_timeout_seconds INTEGER NOT NULL DEFAULT 60, circuit_error_rate_threshold REAL NOT NULL DEFAULT 0.6,\n                circuit_min_requests INTEGER NOT NULL DEFAULT 10,\n                created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))\n            )\"
+        );
+        conn.execute(&proxy_table_sql, [])
+            .map_err(|e| AppError::Database(format!("创建 proxy_config_new 失败: {e}")))?;
 
         for row in &rows {
             conn.execute(

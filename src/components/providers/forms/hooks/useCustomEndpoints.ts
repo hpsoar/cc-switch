@@ -1,9 +1,12 @@
 import { useMemo } from "react";
+
 import type { AppId } from "@/lib/api";
 import type { CustomEndpoint } from "@/types";
 import type { ProviderPreset } from "@/config/claudeProviderPresets";
 import type { CodexProviderPreset } from "@/config/codexProviderPresets";
 import type { OpenCodeProviderPreset } from "@/config/opencodeProviderPresets";
+
+import { getProviderFormAppFeatures } from "@/apps/providerFormAdapters";
 
 type PresetEntry = {
   id: string;
@@ -35,6 +38,10 @@ export function useCustomEndpoints({
   baseUrl,
   codexBaseUrl,
 }: UseCustomEndpointsProps) {
+  const appFeatures = useMemo(
+    () => getProviderFormAppFeatures(appId),
+    [appId],
+  );
   const customEndpointsMap = useMemo(() => {
     const urlSet = new Set<string>();
 
@@ -59,7 +66,7 @@ export function useCustomEndpoints({
     }
 
     // 3. 当前 Base URL
-    if (appId === "codex") {
+    if (appFeatures.speedTestMode === "codex") {
       push(codexBaseUrl);
     } else {
       push(baseUrl);
@@ -81,7 +88,7 @@ export function useCustomEndpoints({
 
     return customMap;
   }, [
-    appId,
+    appFeatures.speedTestMode,
     selectedPresetId,
     presetEntries,
     draftCustomEndpoints,

@@ -7,10 +7,14 @@ import type {
   UniversalProviderApps,
   UniversalProviderModels,
 } from "@/types";
+import type { UniversalProviderModelAppId } from "@/apps/universalProviderAdapters";
 
 import {
+  getDefaultUniversalProviderApps,
   getUniversalProviderConfigPreviews,
   universalProviderAppOptions,
+  universalProviderModelSections,
+  universalProviderSyncAppOptions,
 } from "@/apps/universalProviderAdapters";
 import {
   universalProviderPresets,
@@ -59,10 +63,7 @@ export function UniversalProviderFormModal({
 
   // 应用启用状态
   const [appsEnabled, setAppsEnabled] = useState<UniversalProviderApps>({
-    claude: true,
-    codex: true,
-    gemini: true,
-    opencode: true,
+    ...getDefaultUniversalProviderApps(true),
   });
 
   // 模型配置
@@ -119,7 +120,7 @@ export function UniversalProviderFormModal({
 
   // 更新模型配置
   const updateModel = useCallback(
-    (app: "claude" | "codex" | "gemini", field: string, value: string) => {
+    (app: UniversalProviderModelAppId, field: string, value: string) => {
       setModels((prev) => ({
         ...prev,
         [app]: {
@@ -147,6 +148,11 @@ export function UniversalProviderFormModal({
         enabledApps: appsEnabled,
       }),
     [apiKey, baseUrl, models, appsEnabled],
+  );
+
+  const syncAppNames = useMemo(
+    () => universalProviderSyncAppOptions.map((app) => app.displayName),
+    [],
   );
 
   // 提交表单
@@ -454,115 +460,50 @@ export function UniversalProviderFormModal({
             {t("universalProvider.modelConfig", { defaultValue: "模型配置" })}
           </Label>
 
-          {/* Claude 模型 */}
-          {appsEnabled.claude && (
-            <div className="space-y-3 rounded-lg border p-4">
-              <div className="flex items-center gap-2 font-medium">
-                <ProviderIcon icon="claude" name="Claude" size={16} />
-                Claude
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Label className="text-xs">
-                    {t("universalProvider.model", { defaultValue: "主模型" })}
-                  </Label>
-                  <Input
-                    value={models.claude?.model || ""}
-                    onChange={(e) =>
-                      updateModel("claude", "model", e.target.value)
-                    }
-                    placeholder="claude-sonnet-4-20250514"
+          {universalProviderModelSections.map((section) => {
+            if (!appsEnabled[section.appId]) return null;
+            const sectionModels = (models[section.appId] ?? {}) as Record<
+              string,
+              string
+            >;
+            return (
+              <div
+                key={section.appId}
+                className="space-y-3 rounded-lg border p-4"
+              >
+                <div className="flex items-center gap-2 font-medium">
+                  <ProviderIcon
+                    icon={section.icon}
+                    name={section.label}
+                    size={16}
                   />
+                  {section.label}
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Haiku</Label>
-                  <Input
-                    value={models.claude?.haikuModel || ""}
-                    onChange={(e) =>
-                      updateModel("claude", "haikuModel", e.target.value)
-                    }
-                    placeholder="claude-haiku-4-20250514"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Sonnet</Label>
-                  <Input
-                    value={models.claude?.sonnetModel || ""}
-                    onChange={(e) =>
-                      updateModel("claude", "sonnetModel", e.target.value)
-                    }
-                    placeholder="claude-sonnet-4-20250514"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Opus</Label>
-                  <Input
-                    value={models.claude?.opusModel || ""}
-                    onChange={(e) =>
-                      updateModel("claude", "opusModel", e.target.value)
-                    }
-                    placeholder="claude-sonnet-4-20250514"
-                  />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {section.fields.map((field) => (
+                    <div key={field.key} className="space-y-1">
+                      <Label className="text-xs">
+                        {field.labelKey
+                          ? t(field.labelKey, { defaultValue: field.label })
+                          : field.label}
+                      </Label>
+                      <Input
+                        value={sectionModels[field.key] || ""}
+                        onChange={(e) =>
+                          updateModel(
+                            section.appId,
+                            field.key,
+                            e.target.value,
+                          )
+                        }
+                        placeholder={field.placeholder}
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* Codex 模型 */}
-          {appsEnabled.codex && (
-            <div className="space-y-3 rounded-lg border p-4">
-              <div className="flex items-center gap-2 font-medium">
-                <ProviderIcon icon="openai" name="Codex" size={16} />
-                Codex
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Label className="text-xs">
-                    {t("universalProvider.model", { defaultValue: "模型" })}
-                  </Label>
-                  <Input
-                    value={models.codex?.model || ""}
-                    onChange={(e) =>
-                      updateModel("codex", "model", e.target.value)
-                    }
-                    placeholder="gpt-4o"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Reasoning Effort</Label>
-                  <Input
-                    value={models.codex?.reasoningEffort || ""}
-                    onChange={(e) =>
-                      updateModel("codex", "reasoningEffort", e.target.value)
-                    }
-                    placeholder="high"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Gemini 模型 */}
-          {appsEnabled.gemini && (
-            <div className="space-y-3 rounded-lg border p-4">
-              <div className="flex items-center gap-2 font-medium">
-                <ProviderIcon icon="gemini" name="Gemini" size={16} />
-                Gemini
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">
-                  {t("universalProvider.model", { defaultValue: "模型" })}
-                </Label>
-                <Input
-                  value={models.gemini?.model || ""}
-                  onChange={(e) =>
-                    updateModel("gemini", "model", e.target.value)
-                  }
-                  placeholder="gemini-2.5-pro"
-                />
-              </div>
-            </div>
-          )}
+            );
+          })}
         </div>
 
         {/* 配置 JSON 预览 */}
@@ -608,7 +549,7 @@ export function UniversalProviderFormModal({
           defaultValue: "同步统一供应商",
         })}
         message={t("universalProvider.syncConfirmDescription", {
-          defaultValue: `同步 "${name}" 将会覆盖 Claude、Codex 和 Gemini 中关联的供应商配置。确定要继续吗？`,
+          defaultValue: `同步 "${name}" 将会覆盖 ${syncAppNames.join("、")} 中关联的供应商配置。确定要继续吗？`,
           name: name,
         })}
         confirmText={t("universalProvider.saveAndSync", {

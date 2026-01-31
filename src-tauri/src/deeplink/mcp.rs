@@ -4,12 +4,13 @@
 
 use super::utils::decode_base64_param;
 use super::DeepLinkImportRequest;
-use crate::app_config::{McpApps, McpServer};
+use crate::app_config::{AppType, McpApps, McpServer};
 use crate::error::AppError;
 use crate::services::McpService;
 use crate::store::AppState;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::str::FromStr;
 
 /// MCP import result
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,15 +103,10 @@ pub fn import_mcp_from_deeplink(
             log::info!("MCP server '{id}' already exists, merging apps only");
 
             let mut merged_apps = existing.apps.clone();
-            // Merge new apps into existing apps
-            if target_apps.claude {
-                merged_apps.claude = true;
-            }
-            if target_apps.codex {
-                merged_apps.codex = true;
-            }
-            if target_apps.gemini {
-                merged_apps.gemini = true;
+            for app in AppType::all() {
+                if target_apps.is_enabled_for(app) {
+                    merged_apps.set_enabled_for(app, true);
+                }
             }
 
             McpServer {
@@ -162,25 +158,13 @@ pub fn import_mcp_from_deeplink(
 
 /// Parse apps string into McpApps struct
 pub(crate) fn parse_mcp_apps(apps_str: &str) -> Result<McpApps, AppError> {
-    let mut apps = McpApps {
-        claude: false,
-        codex: false,
-        gemini: false,
-        opencode: false,
-    };
+    let mut apps = McpApps::default();
 
     for app in apps_str.split(',') {
-        match app.trim() {
-            "claude" => apps.claude = true,
-            "codex" => apps.codex = true,
-            "gemini" => apps.gemini = true,
-            "opencode" => apps.opencode = true,
-            other => {
-                return Err(AppError::InvalidInput(format!(
-                    "Invalid app in 'apps': {other}"
-                )))
-            }
-        }
+        let app_type = AppType::from_str(app.trim()).map_err(|_| {
+            AppError::InvalidInput(format!("Invalid app in 'apps': {}", app.trim()))
+        })?;
+        apps.set_enabled_for(&app_type, true);
     }
 
     if apps.is_empty() {

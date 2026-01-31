@@ -5,7 +5,7 @@ use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::app_config::AppType;
-use crate::codex_config;
+use crate::app_registry::{get_config_dir_for_app, get_config_status_for_app};
 use crate::config::{self, get_claude_settings_path, ConfigStatus};
 use crate::settings;
 
@@ -31,36 +31,8 @@ fn invalid_json_format_error(error: serde_json::Error) -> String {
 
 #[tauri::command]
 pub async fn get_config_status(app: String) -> Result<ConfigStatus, String> {
-    match AppType::from_str(&app).map_err(|e| e.to_string())? {
-        AppType::Claude => Ok(config::get_claude_config_status()),
-        AppType::Codex => {
-            let auth_path = codex_config::get_codex_auth_path();
-            let exists = auth_path.exists();
-            let path = codex_config::get_codex_config_dir()
-                .to_string_lossy()
-                .to_string();
-
-            Ok(ConfigStatus { exists, path })
-        }
-        AppType::Gemini => {
-            let env_path = crate::gemini_config::get_gemini_env_path();
-            let exists = env_path.exists();
-            let path = crate::gemini_config::get_gemini_dir()
-                .to_string_lossy()
-                .to_string();
-
-            Ok(ConfigStatus { exists, path })
-        }
-        AppType::OpenCode => {
-            let config_path = crate::opencode_config::get_opencode_config_path();
-            let exists = config_path.exists();
-            let path = crate::opencode_config::get_opencode_dir()
-                .to_string_lossy()
-                .to_string();
-
-            Ok(ConfigStatus { exists, path })
-        }
-    }
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
+    Ok(get_config_status_for_app(&app_type))
 }
 
 /// 获取 Claude Code 配置文件路径
@@ -72,12 +44,8 @@ pub async fn get_claude_code_config_path() -> Result<String, String> {
 /// 获取当前生效的配置目录
 #[tauri::command]
 pub async fn get_config_dir(app: String) -> Result<String, String> {
-    let dir = match AppType::from_str(&app).map_err(|e| e.to_string())? {
-        AppType::Claude => config::get_claude_config_dir(),
-        AppType::Codex => codex_config::get_codex_config_dir(),
-        AppType::Gemini => crate::gemini_config::get_gemini_dir(),
-        AppType::OpenCode => crate::opencode_config::get_opencode_dir(),
-    };
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
+    let dir = get_config_dir_for_app(&app_type);
 
     Ok(dir.to_string_lossy().to_string())
 }
@@ -85,12 +53,8 @@ pub async fn get_config_dir(app: String) -> Result<String, String> {
 /// 打开配置文件夹
 #[tauri::command]
 pub async fn open_config_folder(handle: AppHandle, app: String) -> Result<bool, String> {
-    let config_dir = match AppType::from_str(&app).map_err(|e| e.to_string())? {
-        AppType::Claude => config::get_claude_config_dir(),
-        AppType::Codex => codex_config::get_codex_config_dir(),
-        AppType::Gemini => crate::gemini_config::get_gemini_dir(),
-        AppType::OpenCode => crate::opencode_config::get_opencode_dir(),
-    };
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
+    let config_dir = get_config_dir_for_app(&app_type);
 
     if !config_dir.exists() {
         std::fs::create_dir_all(&config_dir).map_err(|e| format!("创建目录失败: {e}"))?;
@@ -201,9 +165,10 @@ pub async fn get_common_config_snippet(
     app_type: String,
     state: tauri::State<'_, crate::store::AppState>,
 ) -> Result<Option<String>, String> {
+    let app = AppType::from_str(&app_type).map_err(|e| e.to_string())?;
     state
         .db
-        .get_config_snippet(&app_type)
+        .get_config_snippet(app.as_str())
         .map_err(|e| e.to_string())
 }
 
@@ -214,20 +179,11 @@ pub async fn set_common_config_snippet(
     snippet: String,
     state: tauri::State<'_, crate::store::AppState>,
 ) -> Result<(), String> {
+    let app = AppType::from_str(&app_type).map_err(|e| e.to_string())?;
     // 验证格式（根据应用类型）
-    if !snippet.trim().is_empty() {
-        match app_type.as_str() {
-            "claude" | "gemini" | "opencode" => {
-                // 验证 JSON 格式
-                serde_json::from_str::<serde_json::Value>(&snippet)
-                    .map_err(invalid_json_format_error)?;
-            }
-            "codex" => {
-                // TOML 格式暂不验证（或可使用 toml crate）
-                // 注意：TOML 验证较为复杂，暂时跳过
-            }
-            _ => {}
-        }
+    if !snippet.trim().is_empty() && app.common_config_snippet_is_json() {
+        serde_json::from_str::<serde_json::Value>(&snippet)
+            .map_err(invalid_json_format_error)?;
     }
 
     let value = if snippet.trim().is_empty() {
@@ -238,7 +194,7 @@ pub async fn set_common_config_snippet(
 
     state
         .db
-        .set_config_snippet(&app_type, value)
+        .set_config_snippet(app.as_str(), value)
         .map_err(|e| e.to_string())?;
     Ok(())
 }

@@ -10,6 +10,7 @@
 //! See docs/ccswitch-deeplink-design.md for detailed design.
 
 mod mcp;
+mod adapters;
 mod parser;
 mod prompt;
 mod provider;

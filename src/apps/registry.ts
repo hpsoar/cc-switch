@@ -1,4 +1,4 @@
-import type { AppId } from "@/lib/api";
+import { appIds, type AppId } from "@/apps/appIds";
 
 export interface AppDefinition {
   id: AppId;
@@ -10,6 +10,8 @@ export interface AppDefinition {
   defaultConfigDirName: string;
   configDirLabelKey: string;
   configDirPlaceholderKey: string;
+  supportsEnvConflict: boolean;
+  hasCliTool: boolean;
 }
 
 export type AppConfigDirSettingKey =
@@ -25,6 +27,8 @@ export const appRegistry = {
     icon: "claude",
     promptFilename: "CLAUDE.md",
     endpointTimeoutSecs: 8,
+    supportsEnvConflict: true,
+    hasCliTool: true,
     configDirSettingKey: "claudeConfigDir",
     defaultConfigDirName: ".claude",
     configDirLabelKey: "settings.claudeConfigDir",
@@ -36,6 +40,8 @@ export const appRegistry = {
     icon: "openai",
     promptFilename: "AGENTS.md",
     endpointTimeoutSecs: 12,
+    supportsEnvConflict: true,
+    hasCliTool: true,
     configDirSettingKey: "codexConfigDir",
     defaultConfigDirName: ".codex",
     configDirLabelKey: "settings.codexConfigDir",
@@ -47,6 +53,8 @@ export const appRegistry = {
     icon: "gemini",
     promptFilename: "GEMINI.md",
     endpointTimeoutSecs: 8,
+    supportsEnvConflict: true,
+    hasCliTool: true,
     configDirSettingKey: "geminiConfigDir",
     defaultConfigDirName: ".gemini",
     configDirLabelKey: "settings.geminiConfigDir",
@@ -56,8 +64,10 @@ export const appRegistry = {
     id: "opencode",
     label: "OpenCode",
     icon: "opencode",
-    promptFilename: "AGENTS.md",
+    promptFilename: "OPENCODE.md",
     endpointTimeoutSecs: 8,
+    supportsEnvConflict: false,
+    hasCliTool: false,
     configDirSettingKey: "opencodeConfigDir",
     defaultConfigDirName: ".config/opencode",
     configDirLabelKey: "settings.opencodeConfigDir",
@@ -65,9 +75,9 @@ export const appRegistry = {
   },
 } as const satisfies Record<AppId, AppDefinition>;
 
-export const appList: AppDefinition[] = Object.values(appRegistry);
+export const appList: AppDefinition[] = appIds.map((id) => appRegistry[id]);
 
-export const appIds: AppId[] = appList.map((app) => app.id);
+export { appIds };
 
 export const appLabelMap: Record<AppId, string> = appList.reduce(
   (acc, app) => {

@@ -141,18 +141,8 @@ pub(crate) fn build_provider_from_request(
     app_type: &AppType,
     request: &DeepLinkImportRequest,
 ) -> Result<Provider, AppError> {
-    let settings_config = match app_type {
-        AppType::Claude => build_claude_settings(request),
-        AppType::Codex => build_codex_settings(request),
-        AppType::Gemini => build_gemini_settings(request),
-        AppType::OpenCode => {
-            // OpenCode uses simple provider structure
-            json!({
-                "id": request.id.clone().unwrap_or_default(),
-                "name": request.name.clone().unwrap_or_default(),
-            })
-        }
-    };
+    let adapter = super::adapters::get_provider_adapter(app_type);
+    let settings_config = (adapter.build_settings)(request);
 
     // Build usage script configuration if provided
     let meta = build_provider_meta(request)?;
@@ -243,7 +233,7 @@ fn build_provider_meta(request: &DeepLinkImportRequest) -> Result<Option<Provide
 }
 
 /// Build Claude settings configuration
-fn build_claude_settings(request: &DeepLinkImportRequest) -> serde_json::Value {
+pub(crate) fn build_claude_settings(request: &DeepLinkImportRequest) -> serde_json::Value {
     let mut env = serde_json::Map::new();
     env.insert(
         "ANTHROPIC_AUTH_TOKEN".to_string(),
@@ -283,7 +273,7 @@ fn build_claude_settings(request: &DeepLinkImportRequest) -> serde_json::Value {
 }
 
 /// Build Codex settings configuration
-fn build_codex_settings(request: &DeepLinkImportRequest) -> serde_json::Value {
+pub(crate) fn build_codex_settings(request: &DeepLinkImportRequest) -> serde_json::Value {
     // Generate a safe provider name identifier
     let clean_provider_name = {
         let raw: String = request
@@ -354,7 +344,7 @@ requires_openai_auth = true
 }
 
 /// Build Gemini settings configuration
-fn build_gemini_settings(request: &DeepLinkImportRequest) -> serde_json::Value {
+pub(crate) fn build_gemini_settings(request: &DeepLinkImportRequest) -> serde_json::Value {
     let mut env = serde_json::Map::new();
     env.insert("GEMINI_API_KEY".to_string(), json!(request.api_key));
     env.insert(
@@ -368,6 +358,13 @@ fn build_gemini_settings(request: &DeepLinkImportRequest) -> serde_json::Value {
     }
 
     json!({ "env": env })
+}
+
+pub(crate) fn build_opencode_settings(request: &DeepLinkImportRequest) -> serde_json::Value {
+    json!({
+        "id": request.id.clone().unwrap_or_default(),
+        "name": request.name.clone().unwrap_or_default(),
+    })
 }
 
 // =============================================================================

@@ -85,9 +85,9 @@ impl ConfigService {
 
     /// 同步当前供应商到对应的 live 配置。
     pub fn sync_current_providers_to_live(config: &mut MultiAppConfig) -> Result<(), AppError> {
-        Self::sync_current_provider_for_app(config, &AppType::Claude)?;
-        Self::sync_current_provider_for_app(config, &AppType::Codex)?;
-        Self::sync_current_provider_for_app(config, &AppType::Gemini)?;
+        for app in AppType::single_provider_apps() {
+            Self::sync_current_provider_for_app(config, app)?;
+        }
         Ok(())
     }
 

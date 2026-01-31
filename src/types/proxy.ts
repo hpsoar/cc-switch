@@ -41,12 +41,7 @@ export interface ProxyServerInfo {
   started_at: string;
 }
 
-export interface ProxyTakeoverStatus {
-  claude: boolean;
-  codex: boolean;
-  gemini: boolean;
-  opencode: boolean;
-}
+export type ProxyTakeoverStatus = Record<AppId, boolean>;
 
 export interface ProviderHealth {
   provider_id: string;
@@ -134,3 +129,4 @@ export interface AppProxyConfig {
   circuitErrorRateThreshold: number;
   circuitMinRequests: number;
 }
+import type { AppId } from "@/lib/api";

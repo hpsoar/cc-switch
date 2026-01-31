@@ -9,20 +9,11 @@ use crate::error::format_skill_error;
 use crate::services::skill::{DiscoverableSkill, Skill, SkillRepo, SkillService};
 use crate::store::AppState;
 use std::sync::Arc;
+use std::str::FromStr;
 use tauri::State;
 
 /// SkillService 状态包装
 pub struct SkillServiceState(pub Arc<SkillService>);
-
-/// 解析 app 参数为 AppType
-fn parse_app_type(app: &str) -> Result<AppType, String> {
-    match app.to_lowercase().as_str() {
-        "claude" => Ok(AppType::Claude),
-        "codex" => Ok(AppType::Codex),
-        "gemini" => Ok(AppType::Gemini),
-        _ => Err(format!("不支持的 app 类型: {app}")),
-    }
-}
 
 // ========== 统一管理命令 ==========
 
@@ -44,7 +35,7 @@ pub async fn install_skill_unified(
     service: State<'_, SkillServiceState>,
     app_state: State<'_, AppState>,
 ) -> Result<InstalledSkill, String> {
-    let app_type = parse_app_type(&current_app)?;
+    let app_type = AppType::from_str(&current_app).map_err(|e| e.to_string())?;
 
     service
         .0
@@ -68,7 +59,7 @@ pub fn toggle_skill_app(
     enabled: bool,
     app_state: State<'_, AppState>,
 ) -> Result<bool, String> {
-    let app_type = parse_app_type(&app)?;
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     SkillService::toggle_app(&app_state.db, &id, &app_type, enabled).map_err(|e| e.to_string())?;
     Ok(true)
 }

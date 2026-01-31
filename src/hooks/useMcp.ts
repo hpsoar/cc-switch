@@ -27,23 +27,26 @@ export function useAllMcpServers() {
 /**
  * 查询 Claude MCP 状态（从配置文件读取）
  */
-export function useClaudeMcpStatus() {
-  const adapter = getMcpStatusAdapter("claude");
+export function useMcpStatus(appId: AppId) {
+  const adapter = getMcpStatusAdapter(appId);
   return useQuery({
-    queryKey: ["mcp", "status", "claude"],
+    queryKey: ["mcp", "status", appId],
     queryFn: () => adapter?.getStatus() ?? Promise.resolve({ enabled: false }),
   });
+}
+
+/**
+ * 查询 Claude MCP 状态（从配置文件读取）
+ */
+export function useClaudeMcpStatus() {
+  return useMcpStatus("claude");
 }
 
 /**
  * 查询 OpenCode MCP 状态（从配置文件读取）
  */
 export function useOpenCodeMcpStatus() {
-  const adapter = getMcpStatusAdapter("opencode");
-  return useQuery({
-    queryKey: ["mcp", "status", "opencode"],
-    queryFn: () => adapter?.getStatus() ?? Promise.resolve({ enabled: false }),
-  });
+  return useMcpStatus("opencode");
 }
 
 /**

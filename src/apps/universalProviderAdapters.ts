@@ -1,8 +1,12 @@
-import type { UniversalProviderApps, UniversalProviderModels } from "@/types";
-import { appRegistry } from "@/apps/registry";
+import type {
+  UniversalProviderApps,
+  UniversalProviderModels,
+} from "@/types";
+import type { AppId } from "@/lib/api";
+import { appList, appRegistry } from "@/apps/registry";
 
 export interface UniversalProviderAppOption {
-  id: keyof UniversalProviderApps;
+  id: AppId;
   label: string;
   icon: string;
   displayName: string;
@@ -10,38 +14,135 @@ export interface UniversalProviderAppOption {
   supportsConfigPreview: boolean;
 }
 
-export const universalProviderAppOptions: UniversalProviderAppOption[] = [
-  {
-    id: "claude",
-    label: appRegistry.claude.label,
-    icon: appRegistry.claude.icon,
+interface UniversalProviderAppAdapter {
+  displayName: string;
+  supportsModels: boolean;
+  supportsConfigPreview: boolean;
+}
+
+const universalProviderAdapters: Record<AppId, UniversalProviderAppAdapter> = {
+  claude: {
     displayName: "Claude Code",
     supportsModels: true,
     supportsConfigPreview: true,
   },
-  {
-    id: "codex",
-    label: appRegistry.codex.label,
-    icon: appRegistry.codex.icon,
+  codex: {
     displayName: "OpenAI Codex",
     supportsModels: true,
     supportsConfigPreview: true,
   },
-  {
-    id: "gemini",
-    label: appRegistry.gemini.label,
-    icon: appRegistry.gemini.icon,
+  gemini: {
     displayName: "Gemini CLI",
     supportsModels: true,
     supportsConfigPreview: true,
   },
-  {
-    id: "opencode",
-    label: appRegistry.opencode.label,
-    icon: appRegistry.opencode.icon,
+  opencode: {
     displayName: "OpenCode",
     supportsModels: false,
     supportsConfigPreview: false,
+  },
+};
+
+export const universalProviderAppOptions: UniversalProviderAppOption[] =
+  appList.map((app) => ({
+    id: app.id,
+    label: app.label,
+    icon: app.icon,
+    displayName: universalProviderAdapters[app.id].displayName,
+    supportsModels: universalProviderAdapters[app.id].supportsModels,
+    supportsConfigPreview: universalProviderAdapters[app.id].supportsConfigPreview,
+  }));
+
+export const universalProviderSyncAppOptions = universalProviderAppOptions.filter(
+  (app) => app.supportsConfigPreview,
+);
+
+export const getDefaultUniversalProviderApps = (
+  enabled = true,
+): UniversalProviderApps =>
+  appList.reduce(
+    (acc, app) => {
+      acc[app.id] = enabled;
+      return acc;
+    },
+    {} as UniversalProviderApps,
+  );
+
+export type UniversalProviderModelAppId = keyof UniversalProviderModels;
+
+export interface UniversalProviderModelField {
+  key: string;
+  label: string;
+  labelKey?: string;
+  placeholder: string;
+}
+
+export interface UniversalProviderModelSection {
+  appId: UniversalProviderModelAppId;
+  label: string;
+  icon: string;
+  fields: UniversalProviderModelField[];
+}
+
+export const universalProviderModelSections: UniversalProviderModelSection[] = [
+  {
+    appId: "claude",
+    label: appRegistry.claude.label,
+    icon: appRegistry.claude.icon,
+    fields: [
+      {
+        key: "model",
+        label: "主模型",
+        labelKey: "universalProvider.model",
+        placeholder: "claude-sonnet-4-20250514",
+      },
+      {
+        key: "haikuModel",
+        label: "Haiku",
+        placeholder: "claude-haiku-4-20250514",
+      },
+      {
+        key: "sonnetModel",
+        label: "Sonnet",
+        placeholder: "claude-sonnet-4-20250514",
+      },
+      {
+        key: "opusModel",
+        label: "Opus",
+        placeholder: "claude-sonnet-4-20250514",
+      },
+    ],
+  },
+  {
+    appId: "codex",
+    label: appRegistry.codex.label,
+    icon: appRegistry.codex.icon,
+    fields: [
+      {
+        key: "model",
+        label: "模型",
+        labelKey: "universalProvider.model",
+        placeholder: "gpt-4o",
+      },
+      {
+        key: "reasoningEffort",
+        label: "Reasoning Effort",
+        placeholder: "high",
+      },
+    ],
+  },
+  {
+    appId: "gemini",
+    label: appRegistry.gemini.label,
+    icon: appRegistry.gemini.icon,
+    fields: [
+      {
+        key: "model",
+        label: "模型",
+        labelKey: "universalProvider.model",
+        placeholder: "gemini-2.5-pro",
+      },
+    ],
   },
 ];
 

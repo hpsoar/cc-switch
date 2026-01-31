@@ -193,37 +193,20 @@ impl ProxyService {
     /// 获取各应用的接管状态（是否改写该应用的 Live 配置指向本地代理）
     pub async fn get_takeover_status(&self) -> Result<ProxyTakeoverStatus, String> {
         // 从 proxy_config.enabled 读取（优先），兼容旧的 live_backup 备份检测
-        let claude_enabled = self
-            .db
-            .get_proxy_config_for_app("claude")
-            .await
-            .map(|c| c.enabled)
-            .unwrap_or(false);
-        let codex_enabled = self
-            .db
-            .get_proxy_config_for_app("codex")
-            .await
-            .map(|c| c.enabled)
-            .unwrap_or(false);
-        let gemini_enabled = self
-            .db
-            .get_proxy_config_for_app("gemini")
-            .await
-            .map(|c| c.enabled)
-            .unwrap_or(false);
-        let opencode_enabled = self
-            .db
-            .get_proxy_config_for_app("opencode")
-            .await
-            .map(|c| c.enabled)
-            .unwrap_or(false);
+        let mut status = ProxyTakeoverStatus::new();
 
-        Ok(ProxyTakeoverStatus {
-            claude: claude_enabled,
-            codex: codex_enabled,
-            gemini: gemini_enabled,
-            opencode: opencode_enabled,
-        })
+        for app in AppType::all() {
+            let app_id = app.as_str();
+            let enabled = self
+                .db
+                .get_proxy_config_for_app(app_id)
+                .await
+                .map(|c| c.enabled)
+                .unwrap_or(false);
+            status.insert(app_id.to_string(), enabled);
+        }
+
+        Ok(status)
     }
 
     /// 为指定应用开启/关闭 Live 接管
@@ -741,7 +724,8 @@ impl ProxyService {
             .map_err(|e| format!("清除接管状态失败: {e}"))?;
 
         // 4. 清除所有应用的 enabled 状态（用户手动关闭，不需要下次自动恢复）
-        for app_type in ["claude", "codex", "gemini", "opencode"] {
+        for app in AppType::all() {
+            let app_type = app.as_str();
             if let Ok(mut config) = self.db.get_proxy_config_for_app(app_type).await {
                 if config.enabled {
                     config.enabled = false;
@@ -1611,7 +1595,7 @@ impl ProxyService {
     /// 检查是否处于 Live 接管模式
     pub async fn is_takeover_active(&self) -> Result<bool, String> {
         let status = self.get_takeover_status().await?;
-        Ok(status.claude || status.codex || status.gemini || status.opencode)
+        Ok(status.values().any(|enabled| *enabled))
     }
 
     /// 从异常退出中恢复（启动时调用）
@@ -2039,25 +2023,12 @@ impl ProxyService {
             if let Ok(takeover) = self.get_takeover_status().await {
                 let mut updated_any = false;
 
-                if takeover.claude {
-                    self.takeover_live_config_best_effort(&AppType::Claude)
-                        .await?;
-                    updated_any = true;
-                }
-                if takeover.codex {
-                    self.takeover_live_config_best_effort(&AppType::Codex)
-                        .await?;
-                    updated_any = true;
-                }
-                if takeover.gemini {
-                    self.takeover_live_config_best_effort(&AppType::Gemini)
-                        .await?;
-                    updated_any = true;
-                }
-                if takeover.opencode {
-                    self.takeover_live_config_best_effort(&AppType::OpenCode)
-                        .await?;
-                    updated_any = true;
+                for app in AppType::all() {
+                    let is_enabled = takeover.get(app.as_str()).copied().unwrap_or(false);
+                    if is_enabled {
+                        self.takeover_live_config_best_effort(&app).await?;
+                        updated_any = true;
+                    }
                 }
 
                 if updated_any {

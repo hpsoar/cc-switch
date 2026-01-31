@@ -257,13 +257,33 @@ pub struct PromptRoot {
     pub opencode: PromptConfig,
 }
 
+impl PromptRoot {
+    pub fn for_app(&self, app: &AppType) -> &PromptConfig {
+        match app {
+            AppType::Claude => &self.claude,
+            AppType::Codex => &self.codex,
+            AppType::Gemini => &self.gemini,
+            AppType::OpenCode => &self.opencode,
+        }
+    }
+
+    pub fn for_app_mut(&mut self, app: &AppType) -> &mut PromptConfig {
+        match app {
+            AppType::Claude => &mut self.claude,
+            AppType::Codex => &mut self.codex,
+            AppType::Gemini => &mut self.gemini,
+            AppType::OpenCode => &mut self.opencode,
+        }
+    }
+}
+
 use crate::config::{copy_file, get_app_config_dir, get_app_config_path, write_json_file};
 use crate::error::AppError;
 use crate::prompt_files::prompt_file_path;
 use crate::provider::ProviderManager;
 
 /// 应用类型
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AppType {
     Claude,
@@ -271,6 +291,73 @@ pub enum AppType {
     Gemini,
     OpenCode,
 }
+
+#[derive(Debug, Clone, Copy)]
+pub struct AppRegistryEntry {
+    pub app: AppType,
+    pub id: &'static str,
+    pub label: &'static str,
+    pub prompt_filename: &'static str,
+    pub default_config_dir: &'static str,
+    pub mcp_config_filename: &'static str,
+    pub skills_dir_name: &'static str,
+    pub cli_npm_package: Option<&'static str>,
+}
+
+pub const APP_REGISTRY: [AppRegistryEntry; 4] = [
+    AppRegistryEntry {
+        app: AppType::Claude,
+        id: "claude",
+        label: "Claude",
+        prompt_filename: "CLAUDE.md",
+        default_config_dir: ".claude",
+        mcp_config_filename: "claude.json",
+        skills_dir_name: "skills",
+        cli_npm_package: Some("@anthropic-ai/claude-code"),
+    },
+    AppRegistryEntry {
+        app: AppType::Codex,
+        id: "codex",
+        label: "Codex",
+        prompt_filename: "AGENTS.md",
+        default_config_dir: ".codex",
+        mcp_config_filename: "config.toml",
+        skills_dir_name: "skills",
+        cli_npm_package: Some("@openai/codex"),
+    },
+    AppRegistryEntry {
+        app: AppType::Gemini,
+        id: "gemini",
+        label: "Gemini",
+        prompt_filename: "GEMINI.md",
+        default_config_dir: ".gemini",
+        mcp_config_filename: ".mcp.json",
+        skills_dir_name: "skills",
+        cli_npm_package: Some("@google/gemini-cli"),
+    },
+    AppRegistryEntry {
+        app: AppType::OpenCode,
+        id: "opencode",
+        label: "OpenCode",
+        prompt_filename: "OPENCODE.md",
+        default_config_dir: ".config/opencode",
+        mcp_config_filename: "opencode.json",
+        skills_dir_name: "skills",
+        cli_npm_package: None,
+    },
+];
+
+pub const APP_TYPES: [AppType; 4] = [
+    AppType::Claude,
+    AppType::Codex,
+    AppType::Gemini,
+    AppType::OpenCode,
+];
+
+pub const APP_TYPE_IDS: [&str; 4] = ["claude", "codex", "gemini", "opencode"];
+
+pub const SINGLE_PROVIDER_APPS: [AppType; 3] =
+    [AppType::Claude, AppType::Codex, AppType::Gemini];
 
 impl AppType {
     pub fn as_str(&self) -> &str {
@@ -280,6 +367,83 @@ impl AppType {
             AppType::Gemini => "gemini",
             AppType::OpenCode => "opencode",
         }
+    }
+
+    pub fn all() -> &'static [AppType] {
+        &APP_TYPES
+    }
+
+    pub fn single_provider_apps() -> &'static [AppType] {
+        &SINGLE_PROVIDER_APPS
+    }
+
+    pub fn label(&self) -> &'static str {
+        APP_REGISTRY
+            .iter()
+            .find(|entry| entry.app == *self)
+            .map(|entry| entry.label)
+            .unwrap_or("Unknown")
+    }
+
+    pub fn prompt_filename(&self) -> &'static str {
+        APP_REGISTRY
+            .iter()
+            .find(|entry| entry.app == *self)
+            .map(|entry| entry.prompt_filename)
+            .unwrap_or("PROMPT.md")
+    }
+
+    pub fn default_config_dir(&self) -> &'static str {
+        APP_REGISTRY
+            .iter()
+            .find(|entry| entry.app == *self)
+            .map(|entry| entry.default_config_dir)
+            .unwrap_or(".")
+    }
+
+    pub fn mcp_config_filename(&self) -> &'static str {
+        APP_REGISTRY
+            .iter()
+            .find(|entry| entry.app == *self)
+            .map(|entry| entry.mcp_config_filename)
+            .unwrap_or("mcp.json")
+    }
+
+    pub fn skills_dir_name(&self) -> &'static str {
+        APP_REGISTRY
+            .iter()
+            .find(|entry| entry.app == *self)
+            .map(|entry| entry.skills_dir_name)
+            .unwrap_or("skills")
+    }
+
+    pub fn env_base_url_key(&self) -> Option<&'static str> {
+        match self {
+            AppType::Claude => Some("ANTHROPIC_BASE_URL"),
+            AppType::Gemini => Some("GOOGLE_GEMINI_BASE_URL"),
+            _ => None,
+        }
+    }
+
+    pub fn env_conflict_keywords(&self) -> &'static [&'static str] {
+        match self {
+            AppType::Claude => &["ANTHROPIC"],
+            AppType::Codex => &["OPENAI"],
+            AppType::Gemini => &["GEMINI", "GOOGLE_GEMINI"],
+            AppType::OpenCode => &[],
+        }
+    }
+
+    pub fn config_api_key_alias(&self) -> Option<(&'static str, &'static str)> {
+        match self {
+            AppType::Codex => Some(("auth", "OPENAI_API_KEY")),
+            AppType::Gemini => Some(("api_key", "GEMINI_API_KEY")),
+            _ => None,
+        }
+    }
+
+    pub fn common_config_snippet_is_json(&self) -> bool {
+        matches!(self, AppType::Claude | AppType::Gemini | AppType::OpenCode)
     }
 }
 
@@ -554,9 +718,9 @@ impl MultiAppConfig {
         let mut config = Self::default();
 
         // 为每个应用尝试自动导入提示词
-        Self::auto_import_prompt_if_exists(&mut config, AppType::Claude)?;
-        Self::auto_import_prompt_if_exists(&mut config, AppType::Codex)?;
-        Self::auto_import_prompt_if_exists(&mut config, AppType::Gemini)?;
+        for app in AppType::all() {
+            Self::auto_import_prompt_if_exists(&mut config, *app)?;
+        }
 
         Ok(config)
     }
@@ -573,9 +737,9 @@ impl MultiAppConfig {
     /// - Ok(false) 表示无需导入或未导入任何内容
     fn maybe_auto_import_prompts_for_existing_config(&mut self) -> Result<bool, AppError> {
         // 如果任一应用已经有提示词配置，说明用户已经在使用 Prompt 功能，避免再次自动导入
-        if !self.prompts.claude.prompts.is_empty()
-            || !self.prompts.codex.prompts.is_empty()
-            || !self.prompts.gemini.prompts.is_empty()
+        if AppType::all()
+            .iter()
+            .any(|app| !self.prompts.for_app(app).prompts.is_empty())
         {
             return Ok(false);
         }
@@ -583,9 +747,9 @@ impl MultiAppConfig {
         log::info!("检测到已存在配置文件且 Prompt 列表为空，将尝试从现有提示词文件自动导入");
 
         let mut imported = false;
-        for app in [AppType::Claude, AppType::Codex, AppType::Gemini] {
+        for app in AppType::all() {
             // 复用已有的单应用导入逻辑
-            if Self::auto_import_prompt_if_exists(self, app)? {
+            if Self::auto_import_prompt_if_exists(self, *app)? {
                 imported = true;
             }
         }
@@ -648,12 +812,7 @@ impl MultiAppConfig {
         };
 
         // 插入到对应的应用配置中
-        let prompts = match app {
-            AppType::Claude => &mut config.prompts.claude.prompts,
-            AppType::Codex => &mut config.prompts.codex.prompts,
-            AppType::Gemini => &mut config.prompts.gemini.prompts,
-            AppType::OpenCode => &mut config.prompts.opencode.prompts,
-        };
+        let prompts = &mut config.prompts.for_app_mut(&app).prompts;
 
         prompts.insert(id, prompt);
 
@@ -681,13 +840,8 @@ impl MultiAppConfig {
         let mut conflicts = Vec::new();
 
         // 收集所有应用的 MCP
-        for app in [
-            AppType::Claude,
-            AppType::Codex,
-            AppType::Gemini,
-            AppType::OpenCode,
-        ] {
-            let old_servers = match app {
+        for app in AppType::all() {
+            let old_servers = match *app {
                 AppType::Claude => &self.mcp.claude.servers,
                 AppType::Codex => &self.mcp.codex.servers,
                 AppType::Gemini => &self.mcp.gemini.servers,

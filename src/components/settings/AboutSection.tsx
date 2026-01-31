@@ -18,6 +18,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { settingsApi } from "@/lib/api";
 import { useUpdate } from "@/contexts/UpdateContext";
 import { relaunchApp } from "@/lib/updater";
+import { appList } from "@/apps/registry";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 
@@ -313,55 +314,57 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
           </Button>
         </div>
         <div className="grid gap-3 sm:grid-cols-3 px-1">
-          {["claude", "codex", "gemini"].map((toolName, index) => {
-            const tool = toolVersions.find((item) => item.name === toolName);
-            const displayName = tool?.name ?? toolName;
-            const title = tool?.version || tool?.error || t("common.unknown");
+          {appList
+            .filter((app) => app.hasCliTool)
+            .map((app, index) => {
+              const tool = toolVersions.find((item) => item.name === app.id);
+              const displayName = tool?.name ?? app.id;
+              const title = tool?.version || tool?.error || t("common.unknown");
 
-            return (
-              <motion.div
-                key={toolName}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.15 + index * 0.05 }}
-                whileHover={{ scale: 1.02 }}
-                className="flex flex-col gap-2 rounded-xl border border-border bg-gradient-to-br from-card/80 to-card/40 p-4 shadow-sm transition-colors hover:border-primary/30"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Terminal className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium capitalize">
-                      {displayName}
-                    </span>
-                  </div>
-                  {isLoadingTools ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                  ) : tool?.version ? (
-                    <div className="flex items-center gap-1.5">
-                      {tool.latest_version &&
-                        tool.version !== tool.latest_version && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20">
-                            {tool.latest_version}
-                          </span>
-                        )}
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    </div>
-                  ) : (
-                    <AlertCircle className="h-4 w-4 text-yellow-500" />
-                  )}
-                </div>
-                <div
-                  className="text-xs font-mono text-muted-foreground truncate"
-                  title={title}
+              return (
+                <motion.div
+                  key={app.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.15 + index * 0.05 }}
+                  whileHover={{ scale: 1.02 }}
+                  className="flex flex-col gap-2 rounded-xl border border-border bg-gradient-to-br from-card/80 to-card/40 p-4 shadow-sm transition-colors hover:border-primary/30"
                 >
-                  {isLoadingTools
-                    ? t("common.loading")
-                    : tool?.version
-                      ? tool.version
-                      : tool?.error || t("common.notInstalled")}
-                </div>
-              </motion.div>
-            );
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Terminal className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium capitalize">
+                        {displayName}
+                      </span>
+                    </div>
+                    {isLoadingTools ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    ) : tool?.version ? (
+                      <div className="flex items-center gap-1.5">
+                        {tool.latest_version &&
+                          tool.version !== tool.latest_version && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20">
+                              {tool.latest_version}
+                            </span>
+                          )}
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      </div>
+                    ) : (
+                      <AlertCircle className="h-4 w-4 text-yellow-500" />
+                    )}
+                  </div>
+                  <div
+                    className="text-xs font-mono text-muted-foreground truncate"
+                    title={title}
+                  >
+                    {isLoadingTools
+                      ? t("common.loading")
+                      : tool?.version
+                        ? tool.version
+                        : tool?.error || t("common.notInstalled")}
+                  </div>
+                </motion.div>
+              );
           })}
         </div>
       </div>

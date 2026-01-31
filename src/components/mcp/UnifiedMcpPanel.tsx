@@ -1,23 +1,26 @@
 import React, { useMemo, useState } from "react";
 import { Edit3, Search, Server, Trash2, X } from "lucide-react";
-import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+
 import type { AppId } from "@/lib/api/types";
 import type { McpServer } from "@/types";
+
 import { appIds } from "@/apps/registry";
-import { settingsApi } from "@/lib/api";
 import {
   useAllMcpServers,
-  useOpenCodeMcpStatus,
+  useMcpStatus,
   useToggleMcpApp,
   useDeleteMcpServer,
   useImportMcpFromApps,
 } from "@/hooks/useMcp";
 import { mcpPresets } from "@/config/mcpPresets";
+import { settingsApi } from "@/lib/api";
+
+import { ConfirmDialog } from "../ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { ConfirmDialog } from "../ConfirmDialog";
 import McpFormModal from "./McpFormModal";
 
 interface UnifiedMcpPanelProps {
@@ -51,7 +54,7 @@ const UnifiedMcpPanel = React.forwardRef<
 
   // Queries and Mutations
   const { data: serversMap, isLoading } = useAllMcpServers();
-  const { data: openCodeStatus } = useOpenCodeMcpStatus();
+  const { data: openCodeStatus } = useMcpStatus("opencode");
   const toggleAppMutation = useToggleMcpApp();
   const deleteServerMutation = useDeleteMcpServer();
   const importMutation = useImportMcpFromApps();

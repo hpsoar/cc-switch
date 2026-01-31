@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslation } from "react-i18next";
@@ -8,22 +9,23 @@ import type { AppId } from "@/lib/api";
 import type { ProviderFormData } from "@/lib/schemas/provider";
 import type { ProviderCategory, ProviderMeta } from "@/types";
 import type { ProviderPresetEntry } from "@/apps/providerFormAdapters";
-import type { ProviderPreset } from "@/config/claudeProviderPresets";
-import type { CodexProviderPreset } from "@/config/codexProviderPresets";
-import type { GeminiProviderPreset } from "@/config/geminiProviderPresets";
-import type { OpenCodeProviderPreset } from "@/config/opencodeProviderPresets";
 import type { UniversalProviderPreset } from "@/config/universalProviderPresets";
 
 import {
   buildProviderSettingsConfig,
   getDefaultSettingsConfig,
+  getProviderFormAppFeatures,
   getProviderPresetEntries,
   getRequiredProviderFields,
 } from "@/apps/providerFormAdapters";
 import { providerSchema } from "@/lib/schemas/provider";
-import { applyTemplateValues } from "@/utils/providerConfigUtils";
 import { mergeProviderMeta } from "@/utils/providerMetaUtils";
-import { getCodexCustomTemplate } from "@/config/codexTemplates";
+import {
+  applyProviderPresetEntry,
+  getPresetMetaSummary,
+  maybeInitCustomCodexPreset,
+  resetProviderFormForCustomPreset,
+} from "./providerFormPresetUtils";
 
 import { Button } from "@/components/ui/button";
 import { Form, FormField, FormItem, FormMessage } from "@/components/ui/form";
@@ -197,7 +199,7 @@ export function ProviderForm({
   });
 
   const isOpenRouterProvider = useMemo(() => {
-    if (appId !== "claude") return false;
+    if (!appFeatures.supportsOpenRouterCompat) return false;
     const normalized = baseUrl.trim().toLowerCase();
     if (normalized.includes("openrouter.ai")) {
       return true;
@@ -209,7 +211,7 @@ export function ProviderForm({
     } catch {
       return false;
     }
-  }, [appId, baseUrl, settingsConfigValue]);
+  }, [appFeatures.supportsOpenRouterCompat, baseUrl, settingsConfigValue]);
 
   const openRouterCompatEnabled = useMemo(() => {
     if (!isOpenRouterProvider) return false;
@@ -274,10 +276,12 @@ export function ProviderForm({
 
   // Codex 新建模式：初始化时自动填充模板
   useEffect(() => {
-    if (appId === "codex" && !initialData && selectedPresetId === "custom") {
-      const template = getCodexCustomTemplate();
-      resetCodexConfig(template.auth, template.config);
-    }
+    maybeInitCustomCodexPreset({
+      appId,
+      initialData,
+      selectedPresetId,
+      resetCodexConfig,
+    });
   }, [appId, initialData, selectedPresetId, resetCodexConfig]);
 
   useEffect(() => {
@@ -306,6 +310,10 @@ export function ProviderForm({
     () => getProviderPresetEntries(appId),
     [appId],
   );
+  const appFeatures = useMemo(
+    () => getProviderFormAppFeatures(appId),
+    [appId],
+  );
 
   // 使用模板变量 hook (仅 Claude 模式)
   const {
@@ -315,8 +323,8 @@ export function ProviderForm({
     handleTemplateValueChange,
     validateTemplateValues,
   } = useTemplateValues({
-    selectedPresetId: appId === "claude" ? selectedPresetId : null,
-    presetEntries: appId === "claude" ? presetEntries : [],
+    selectedPresetId: appFeatures.supportsTemplateValues ? selectedPresetId : null,
+    presetEntries: appFeatures.supportsTemplateValues ? presetEntries : [],
     settingsConfig: form.watch("settingsConfig"),
     onConfigChange: (config) => form.setValue("settingsConfig", config),
   });
@@ -333,7 +341,7 @@ export function ProviderForm({
   } = useCommonConfigSnippet({
     settingsConfig: form.watch("settingsConfig"),
     onConfigChange: (config) => form.setValue("settingsConfig", config),
-    initialData: appId === "claude" ? initialData : undefined,
+    initialData: appFeatures.supportsClaudeCommonConfig ? initialData : undefined,
     selectedPresetId: selectedPresetId ?? undefined,
   });
 
@@ -349,7 +357,7 @@ export function ProviderForm({
   } = useCodexCommonConfig({
     codexConfig,
     onConfigChange: handleCodexConfigChange,
-    initialData: appId === "codex" ? initialData : undefined,
+    initialData: appFeatures.supportsCodexCommonConfig ? initialData : undefined,
     selectedPresetId: selectedPresetId ?? undefined,
   });
 
@@ -371,7 +379,7 @@ export function ProviderForm({
     envStringToObj,
     envObjToString,
   } = useGeminiConfigState({
-    initialData: appId === "gemini" ? initialData : undefined,
+    initialData: appFeatures.supportsGeminiConfigState ? initialData : undefined,
   });
 
   // 包装 Gemini handlers 以同步 settingsConfig
@@ -437,7 +445,7 @@ export function ProviderForm({
     onEnvChange: handleGeminiEnvChange,
     envStringToObj,
     envObjToString,
-    initialData: appId === "gemini" ? initialData : undefined,
+    initialData: appFeatures.supportsGeminiCommonConfig ? initialData : undefined,
     selectedPresetId: selectedPresetId ?? undefined,
   });
 
@@ -453,7 +461,7 @@ export function ProviderForm({
     providerConfigJson,
     parseProviderConfig,
   } = useOpenCodeConfigState({
-    initialData: appId === "opencode" ? initialData : undefined,
+    initialData: appFeatures.supportsOpenCodeConfigState ? initialData : undefined,
   });
 
   // OpenCode Common Config states
@@ -469,7 +477,7 @@ export function ProviderForm({
   } = useOpenCodeCommonConfig({
     providerConfigValue: providerConfigJson,
     onProviderConfigChange: handleOpenCodeConfigChange,
-    initialData: appId === "opencode" ? initialData : undefined,
+    initialData: appFeatures.supportsOpenCodeCommonConfig ? initialData : undefined,
     selectedPresetId: selectedPresetId ?? undefined,
   });
 
@@ -487,7 +495,7 @@ export function ProviderForm({
 
   // 监听Provider Name字段变化，同步到OpenCode配置
   useEffect(() => {
-    if (appId !== "opencode") return;
+    if (!appFeatures.supportsOpenCodeNameSync) return;
 
     const subscription = form.watch((value, { name: fieldName }) => {
       if (fieldName !== "name") return;
@@ -522,7 +530,7 @@ export function ProviderForm({
 
     return () => subscription.unsubscribe();
   }, [
-    appId,
+    appFeatures.supportsOpenCodeNameSync,
     providerConfigJson,
     parseProviderConfig,
     handleOpenCodeConfigChange,
@@ -531,7 +539,7 @@ export function ProviderForm({
 
   // 监听OpenCode配置变化，同步到表单
   useEffect(() => {
-    if (appId !== "opencode" || !providerConfigJson) return;
+    if (!appFeatures.supportsOpenCodeConfigState || !providerConfigJson) return;
 
     form.setValue("settingsConfig", providerConfigJson);
 
@@ -547,14 +555,19 @@ export function ProviderForm({
         form.setValue("name", parsed.name, { shouldValidate: false });
       }
     }
-  }, [appId, providerConfigJson, form, parseProviderConfig]);
+  }, [
+    appFeatures.supportsOpenCodeConfigState,
+    providerConfigJson,
+    form,
+    parseProviderConfig,
+  ]);
 
   // 从JSON配置中提取headers（初始化 + JSON编辑器直接修改时）
   const prevProviderConfigJsonRef = useRef<string>("");
   const isUpdatingFromUIRef = useRef<boolean>(false);
 
   useEffect(() => {
-    if (appId !== "opencode" || !providerConfigJson) return;
+    if (!appFeatures.supportsOpenCodeConfigState || !providerConfigJson) return;
 
     // 如果是通过UI触发的更新，跳过
     if (isUpdatingFromUIRef.current) {
@@ -573,7 +586,7 @@ export function ProviderForm({
     setOpencodeHeaders(configHeaders);
     prevProviderConfigJsonRef.current = providerConfigJson;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appId, providerConfigJson]);
+  }, [appFeatures.supportsOpenCodeConfigState, providerConfigJson, parseProviderConfig]);
 
   // 当用户通过UI修改headers时，同步到JSON配置
   const handleOpenCodeHeadersChangeWithSync = useCallback(
@@ -618,7 +631,7 @@ export function ProviderForm({
 
   const handleSubmit = (values: ProviderFormData) => {
     // 验证模板变量（仅 Claude 模式）
-    if (appId === "claude" && templateValueEntries.length > 0) {
+    if (appFeatures.supportsTemplateValues && templateValueEntries.length > 0) {
       const validation = validateTemplateValues();
       if (!validation.isValid && validation.missingField) {
         toast.error(
@@ -761,12 +774,12 @@ export function ProviderForm({
   const groupedPresets = useMemo(() => {
     return presetEntries.reduce<Record<string, ProviderPresetEntry[]>>(
       (acc, entry) => {
-      const category = entry.preset.category ?? "others";
-      if (!acc[category]) {
-        acc[category] = [];
-      }
-      acc[category].push(entry);
-      return acc;
+        const category = entry.preset.category ?? "others";
+        if (!acc[category]) {
+          acc[category] = [];
+        }
+        acc[category].push(entry);
+        return acc;
       },
       {},
     );
@@ -781,42 +794,13 @@ export function ProviderForm({
   // 判断是否显示端点测速（仅官方类别不显示）
   const shouldShowSpeedTest = category !== "official";
 
-  // 使用 API Key 链接 hook (Claude)
   const {
-    shouldShowApiKeyLink: shouldShowClaudeApiKeyLink,
-    websiteUrl: claudeWebsiteUrl,
-    isPartner: isClaudePartner,
-    partnerPromotionKey: claudePartnerPromotionKey,
+    shouldShowApiKeyLink,
+    websiteUrl: apiKeyWebsiteUrl,
+    isPartner: isApiKeyPartner,
+    partnerPromotionKey: apiKeyPartnerPromotionKey,
   } = useApiKeyLink({
-    appId: "claude",
-    category,
-    selectedPresetId,
-    presetEntries,
-    formWebsiteUrl: form.watch("websiteUrl") || "",
-  });
-
-  // 使用 API Key 链接 hook (Codex)
-  const {
-    shouldShowApiKeyLink: shouldShowCodexApiKeyLink,
-    websiteUrl: codexWebsiteUrl,
-    isPartner: isCodexPartner,
-    partnerPromotionKey: codexPartnerPromotionKey,
-  } = useApiKeyLink({
-    appId: "codex",
-    category,
-    selectedPresetId,
-    presetEntries,
-    formWebsiteUrl: form.watch("websiteUrl") || "",
-  });
-
-  // 使用 API Key 链接 hook (Gemini)
-  const {
-    shouldShowApiKeyLink: shouldShowGeminiApiKeyLink,
-    websiteUrl: geminiWebsiteUrl,
-    isPartner: isGeminiPartner,
-    partnerPromotionKey: geminiPartnerPromotionKey,
-  } = useApiKeyLink({
-    appId: "gemini",
+    appId,
     category,
     selectedPresetId,
     presetEntries,
@@ -837,21 +821,14 @@ export function ProviderForm({
     setSelectedPresetId(value);
     if (value === "custom") {
       setActivePreset(null);
-      form.reset(defaultValues);
-
-      // Codex 自定义模式：加载模板
-      if (appId === "codex") {
-        const template = getCodexCustomTemplate();
-        resetCodexConfig(template.auth, template.config);
-      }
-      // Gemini 自定义模式：重置为空配置
-      if (appId === "gemini") {
-        resetGeminiConfig({}, {});
-      }
-      // OpenCode 自定义模式：重置为空配置
-      if (appId === "opencode") {
-        resetOpenCodeConfig({}, {});
-      }
+      resetProviderFormForCustomPreset({
+        appId,
+        form,
+        defaultValues,
+        resetCodexConfig,
+        resetGeminiConfig,
+        resetOpenCodeConfig,
+      });
       return;
     }
 
@@ -860,83 +837,252 @@ export function ProviderForm({
       return;
     }
 
-    setActivePreset({
-      id: value,
-      category: entry.preset.category,
-      isPartner: entry.preset.isPartner,
-      partnerPromotionKey: entry.preset.partnerPromotionKey,
+    setActivePreset(getPresetMetaSummary(entry));
+    applyProviderPresetEntry({
+      appId,
+      entry,
+      form,
+      resetCodexConfig,
+      resetGeminiConfig,
+      resetOpenCodeConfig,
     });
+  };
 
-    if (appId === "codex") {
-      const preset = entry.preset as CodexProviderPreset;
-      const auth = preset.auth ?? {};
-      const config = preset.config ?? "";
+  const settingsConfigErrorField = (
+    <FormField
+      control={form.control}
+      name="settingsConfig"
+      render={() => (
+        <FormItem className="space-y-0">
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
 
-      // 重置 Codex 配置
-      resetCodexConfig(auth, config);
+  const formFieldsByApp: Record<AppId, ReactNode> = {
+    claude: (
+      <ClaudeFormFields
+        providerId={providerId}
+        shouldShowApiKey={shouldShowApiKey(
+          form.watch("settingsConfig"),
+          isEditMode,
+        )}
+        apiKey={apiKey}
+        onApiKeyChange={handleApiKeyChange}
+        category={category}
+        shouldShowApiKeyLink={shouldShowApiKeyLink}
+        websiteUrl={apiKeyWebsiteUrl}
+        isPartner={isApiKeyPartner}
+        partnerPromotionKey={apiKeyPartnerPromotionKey}
+        templateValueEntries={templateValueEntries}
+        templateValues={templateValues}
+        templatePresetName={templatePreset?.name || ""}
+        onTemplateValueChange={handleTemplateValueChange}
+        shouldShowSpeedTest={shouldShowSpeedTest}
+        baseUrl={baseUrl}
+        onBaseUrlChange={handleClaudeBaseUrlChange}
+        isEndpointModalOpen={isEndpointModalOpen}
+        onEndpointModalToggle={setIsEndpointModalOpen}
+        onCustomEndpointsChange={
+          isEditMode ? undefined : setDraftCustomEndpoints
+        }
+        autoSelect={endpointAutoSelect}
+        onAutoSelectChange={setEndpointAutoSelect}
+        shouldShowModelSelector={category !== "official"}
+        claudeModel={claudeModel}
+        reasoningModel={reasoningModel}
+        defaultHaikuModel={defaultHaikuModel}
+        defaultSonnetModel={defaultSonnetModel}
+        defaultOpusModel={defaultOpusModel}
+        onModelChange={handleModelChange}
+        speedTestEndpoints={speedTestEndpoints}
+        showOpenRouterCompatToggle={false}
+        openRouterCompatEnabled={openRouterCompatEnabled}
+        onOpenRouterCompatChange={handleOpenRouterCompatChange}
+      />
+    ),
+    codex: (
+      <CodexFormFields
+        providerId={providerId}
+        codexApiKey={codexApiKey}
+        onApiKeyChange={handleCodexApiKeyChange}
+        category={category}
+        shouldShowApiKeyLink={shouldShowApiKeyLink}
+        websiteUrl={apiKeyWebsiteUrl}
+        isPartner={isApiKeyPartner}
+        partnerPromotionKey={apiKeyPartnerPromotionKey}
+        shouldShowSpeedTest={shouldShowSpeedTest}
+        codexBaseUrl={codexBaseUrl}
+        onBaseUrlChange={handleCodexBaseUrlChange}
+        isEndpointModalOpen={isCodexEndpointModalOpen}
+        onEndpointModalToggle={setIsCodexEndpointModalOpen}
+        onCustomEndpointsChange={
+          isEditMode ? undefined : setDraftCustomEndpoints
+        }
+        autoSelect={endpointAutoSelect}
+        onAutoSelectChange={setEndpointAutoSelect}
+        shouldShowModelField={category !== "official"}
+        modelName={codexModelName}
+        onModelNameChange={handleCodexModelNameChange}
+        speedTestEndpoints={speedTestEndpoints}
+      />
+    ),
+    gemini: (
+      <GeminiFormFields
+        providerId={providerId}
+        shouldShowApiKey={shouldShowApiKey(
+          form.watch("settingsConfig"),
+          isEditMode,
+        )}
+        apiKey={geminiApiKey}
+        onApiKeyChange={handleGeminiApiKeyChange}
+        category={category}
+        shouldShowApiKeyLink={shouldShowApiKeyLink}
+        websiteUrl={apiKeyWebsiteUrl}
+        isPartner={isApiKeyPartner}
+        partnerPromotionKey={apiKeyPartnerPromotionKey}
+        shouldShowSpeedTest={shouldShowSpeedTest}
+        baseUrl={geminiBaseUrl}
+        onBaseUrlChange={handleGeminiBaseUrlChange}
+        isEndpointModalOpen={isEndpointModalOpen}
+        onEndpointModalToggle={setIsEndpointModalOpen}
+        onCustomEndpointsChange={setDraftCustomEndpoints}
+        autoSelect={endpointAutoSelect}
+        onAutoSelectChange={setEndpointAutoSelect}
+        shouldShowModelField={true}
+        model={geminiModel}
+        onModelChange={handleGeminiModelChange}
+        speedTestEndpoints={speedTestEndpoints}
+      />
+    ),
+    opencode: (
+      <OpenCodeFormFields
+        providerId={providerId}
+        providerName={form.watch("name") || ""}
+        shouldShowApiKey={shouldShowApiKey(
+          form.watch("settingsConfig"),
+          isEditMode,
+        )}
+        apiKey={opencodeApiKey}
+        onApiKeyChange={handleOpenCodeApiKeyChange}
+        category={category}
+        shouldShowApiKeyLink={false}
+        websiteUrl={form.watch("websiteUrl") || ""}
+        isPartner={false}
+        partnerPromotionKey={undefined}
+        shouldShowSpeedTest={shouldShowSpeedTest}
+        baseUrl={opencodeBaseUrl}
+        onBaseUrlChange={handleOpenCodeBaseUrlChange}
+        isEndpointModalOpen={isEndpointModalOpen}
+        onEndpointModalToggle={setIsEndpointModalOpen}
+        onCustomEndpointsChange={setDraftCustomEndpoints}
+        autoSelect={endpointAutoSelect}
+        onAutoSelectChange={setEndpointAutoSelect}
+        headers={opencodeHeaders}
+        onHeadersChange={handleOpenCodeHeadersChangeWithSync}
+        speedTestEndpoints={speedTestEndpoints}
+      />
+    ),
+  };
 
-      // 更新表单其他字段
-      form.reset({
-        name: preset.name,
-        websiteUrl: preset.websiteUrl ?? "",
-        settingsConfig: JSON.stringify({ auth, config }, null, 2),
-        icon: preset.icon ?? "",
-        iconColor: preset.iconColor ?? "",
-      });
-      return;
-    }
-
-    if (appId === "gemini") {
-      const preset = entry.preset as GeminiProviderPreset;
-      const env = (preset.settingsConfig as any)?.env ?? {};
-      const config = (preset.settingsConfig as any)?.config ?? {};
-
-      // 重置 Gemini 配置
-      resetGeminiConfig(env, config);
-
-      // 更新表单其他字段
-      form.reset({
-        name: preset.name,
-        websiteUrl: preset.websiteUrl ?? "",
-        settingsConfig: JSON.stringify(preset.settingsConfig, null, 2),
-        icon: preset.icon ?? "",
-        iconColor: preset.iconColor ?? "",
-      });
-      return;
-    }
-
-    if (appId === "opencode") {
-      const preset = entry.preset as OpenCodeProviderPreset;
-      const env = (preset.settingsConfig as any)?.env ?? {};
-      const config = (preset.settingsConfig as any)?.config ?? {};
-
-      // 重置 OpenCode 配置
-      resetOpenCodeConfig(env, config);
-
-      // 更新表单其他字段
-      form.reset({
-        name: preset.name,
-        websiteUrl: preset.websiteUrl ?? "",
-        settingsConfig: JSON.stringify(preset.settingsConfig, null, 2),
-        icon: preset.icon ?? "",
-        iconColor: preset.iconColor ?? "",
-      });
-      return;
-    }
-
-    const preset = entry.preset as ProviderPreset;
-    const config = applyTemplateValues(
-      preset.settingsConfig,
-      preset.templateValues,
-    );
-
-    form.reset({
-      name: preset.name,
-      websiteUrl: preset.websiteUrl ?? "",
-      settingsConfig: JSON.stringify(config, null, 2),
-      icon: preset.icon ?? "",
-      iconColor: preset.iconColor ?? "",
-    });
+  const configEditorByApp: Record<AppId, ReactNode> = {
+      codex: (
+        <>
+          <CodexConfigEditor
+            authValue={codexAuth}
+            configValue={codexConfig}
+            onAuthChange={setCodexAuth}
+            onConfigChange={handleCodexConfigChange}
+            useCommonConfig={useCodexCommonConfigFlag}
+            onCommonConfigToggle={handleCodexCommonConfigToggle}
+            commonConfigSnippet={codexCommonConfigSnippet}
+            onCommonConfigSnippetChange={handleCodexCommonConfigSnippetChange}
+            commonConfigError={codexCommonConfigError}
+            authError={codexAuthError}
+            configError={codexConfigError}
+            onExtract={handleCodexExtract}
+            isExtracting={isCodexExtracting}
+          />
+          {settingsConfigErrorField}
+        </>
+      ),
+      gemini: (
+        <>
+          <GeminiConfigEditor
+            envValue={geminiEnv}
+            configValue={geminiConfig}
+            onEnvChange={handleGeminiEnvChange}
+            onConfigChange={handleGeminiConfigChange}
+            useCommonConfig={useGeminiCommonConfigFlag}
+            onCommonConfigToggle={handleGeminiCommonConfigToggle}
+            commonConfigSnippet={geminiCommonConfigSnippet}
+            onCommonConfigSnippetChange={handleGeminiCommonConfigSnippetChange}
+            commonConfigError={geminiCommonConfigError}
+            envError={envError}
+            configError={geminiConfigError}
+            onExtract={handleGeminiExtract}
+            isExtracting={isGeminiExtracting}
+          />
+          {settingsConfigErrorField}
+        </>
+      ),
+      opencode: (
+        <>
+          <OpenCodeConfigEditor
+            providerConfigValue={providerConfigJson}
+            onProviderConfigChange={handleOpenCodeConfigChangeWithSync}
+            configError={configError}
+            useCommonConfig={useOpenCodeCommonConfigFlag}
+            onCommonConfigToggle={handleOpenCodeCommonConfigToggle}
+            commonConfigSnippet={opencodeCommonConfigSnippet}
+            onCommonConfigSnippetChange={handleOpenCodeCommonConfigSnippetChange}
+            commonConfigError={opencodeCommonConfigError}
+            onExtract={handleOpenCodeExtract}
+            isExtracting={isOpenCodeExtracting}
+            onClearCommonConfigError={clearOpenCodeCommonConfigError}
+          />
+          {settingsConfigErrorField}
+        </>
+      ),
+      claude: (
+        <>
+          <CommonConfigEditor
+            value={form.watch("settingsConfig")}
+            onChange={(value) => form.setValue("settingsConfig", value)}
+            useCommonConfig={useCommonConfig}
+            onCommonConfigToggle={handleCommonConfigToggle}
+            commonConfigSnippet={commonConfigSnippet}
+            onCommonConfigSnippetChange={handleCommonConfigSnippetChange}
+            commonConfigError={commonConfigError}
+            onEditClick={() => setIsCommonConfigModalOpen(true)}
+            isModalOpen={isCommonConfigModalOpen}
+            onModalClose={() => setIsCommonConfigModalOpen(false)}
+            onExtract={handleClaudeExtract}
+            isExtracting={isClaudeExtracting}
+          />
+          {settingsConfigErrorField}
+        </>
+      ),
+    claude: (
+      <>
+        <CommonConfigEditor
+          value={form.watch("settingsConfig")}
+          onChange={(value) => form.setValue("settingsConfig", value)}
+          useCommonConfig={useCommonConfig}
+          onCommonConfigToggle={handleCommonConfigToggle}
+          commonConfigSnippet={commonConfigSnippet}
+          onCommonConfigSnippetChange={handleCommonConfigSnippetChange}
+          commonConfigError={commonConfigError}
+          onEditClick={() => setIsCommonConfigModalOpen(true)}
+          isModalOpen={isCommonConfigModalOpen}
+          onModalClose={() => setIsCommonConfigModalOpen(false)}
+          onExtract={handleClaudeExtract}
+          isExtracting={isClaudeExtracting}
+        />
+        {settingsConfigErrorField}
+      </>
+    ),
   };
 
   return (
@@ -963,252 +1109,10 @@ export function ProviderForm({
         {/* 基础字段 */}
         <BasicFormFields form={form} />
 
-        {/* Claude 专属字段 */}
-        {appId === "claude" && (
-          <ClaudeFormFields
-            providerId={providerId}
-            shouldShowApiKey={shouldShowApiKey(
-              form.watch("settingsConfig"),
-              isEditMode,
-            )}
-            apiKey={apiKey}
-            onApiKeyChange={handleApiKeyChange}
-            category={category}
-            shouldShowApiKeyLink={shouldShowClaudeApiKeyLink}
-            websiteUrl={claudeWebsiteUrl}
-            isPartner={isClaudePartner}
-            partnerPromotionKey={claudePartnerPromotionKey}
-            templateValueEntries={templateValueEntries}
-            templateValues={templateValues}
-            templatePresetName={templatePreset?.name || ""}
-            onTemplateValueChange={handleTemplateValueChange}
-            shouldShowSpeedTest={shouldShowSpeedTest}
-            baseUrl={baseUrl}
-            onBaseUrlChange={handleClaudeBaseUrlChange}
-            isEndpointModalOpen={isEndpointModalOpen}
-            onEndpointModalToggle={setIsEndpointModalOpen}
-            onCustomEndpointsChange={
-              isEditMode ? undefined : setDraftCustomEndpoints
-            }
-            autoSelect={endpointAutoSelect}
-            onAutoSelectChange={setEndpointAutoSelect}
-            shouldShowModelSelector={category !== "official"}
-            claudeModel={claudeModel}
-            reasoningModel={reasoningModel}
-            defaultHaikuModel={defaultHaikuModel}
-            defaultSonnetModel={defaultSonnetModel}
-            defaultOpusModel={defaultOpusModel}
-            onModelChange={handleModelChange}
-            speedTestEndpoints={speedTestEndpoints}
-            showOpenRouterCompatToggle={false}
-            openRouterCompatEnabled={openRouterCompatEnabled}
-            onOpenRouterCompatChange={handleOpenRouterCompatChange}
-          />
-        )}
-
-        {/* Codex 专属字段 */}
-        {appId === "codex" && (
-          <CodexFormFields
-            providerId={providerId}
-            codexApiKey={codexApiKey}
-            onApiKeyChange={handleCodexApiKeyChange}
-            category={category}
-            shouldShowApiKeyLink={shouldShowCodexApiKeyLink}
-            websiteUrl={codexWebsiteUrl}
-            isPartner={isCodexPartner}
-            partnerPromotionKey={codexPartnerPromotionKey}
-            shouldShowSpeedTest={shouldShowSpeedTest}
-            codexBaseUrl={codexBaseUrl}
-            onBaseUrlChange={handleCodexBaseUrlChange}
-            isEndpointModalOpen={isCodexEndpointModalOpen}
-            onEndpointModalToggle={setIsCodexEndpointModalOpen}
-            onCustomEndpointsChange={
-              isEditMode ? undefined : setDraftCustomEndpoints
-            }
-            autoSelect={endpointAutoSelect}
-            onAutoSelectChange={setEndpointAutoSelect}
-            shouldShowModelField={category !== "official"}
-            modelName={codexModelName}
-            onModelNameChange={handleCodexModelNameChange}
-            speedTestEndpoints={speedTestEndpoints}
-          />
-        )}
-
-        {/* Gemini 专属字段 */}
-        {appId === "gemini" && (
-          <GeminiFormFields
-            providerId={providerId}
-            shouldShowApiKey={shouldShowApiKey(
-              form.watch("settingsConfig"),
-              isEditMode,
-            )}
-            apiKey={geminiApiKey}
-            onApiKeyChange={handleGeminiApiKeyChange}
-            category={category}
-            shouldShowApiKeyLink={shouldShowGeminiApiKeyLink}
-            websiteUrl={geminiWebsiteUrl}
-            isPartner={isGeminiPartner}
-            partnerPromotionKey={geminiPartnerPromotionKey}
-            shouldShowSpeedTest={shouldShowSpeedTest}
-            baseUrl={geminiBaseUrl}
-            onBaseUrlChange={handleGeminiBaseUrlChange}
-            isEndpointModalOpen={isEndpointModalOpen}
-            onEndpointModalToggle={setIsEndpointModalOpen}
-            onCustomEndpointsChange={setDraftCustomEndpoints}
-            autoSelect={endpointAutoSelect}
-            onAutoSelectChange={setEndpointAutoSelect}
-            shouldShowModelField={true}
-            model={geminiModel}
-            onModelChange={handleGeminiModelChange}
-            speedTestEndpoints={speedTestEndpoints}
-          />
-        )}
-
-        {/* OpenCode 专属字段 */}
-        {appId === "opencode" && (
-          <OpenCodeFormFields
-            providerId={providerId}
-            providerName={form.watch("name") || ""}
-            shouldShowApiKey={shouldShowApiKey(
-              form.watch("settingsConfig"),
-              isEditMode,
-            )}
-            apiKey={opencodeApiKey}
-            onApiKeyChange={handleOpenCodeApiKeyChange}
-            category={category}
-            shouldShowApiKeyLink={false}
-            websiteUrl={form.watch("websiteUrl") || ""}
-            isPartner={false}
-            partnerPromotionKey={undefined}
-            shouldShowSpeedTest={shouldShowSpeedTest}
-            baseUrl={opencodeBaseUrl}
-            onBaseUrlChange={handleOpenCodeBaseUrlChange}
-            isEndpointModalOpen={isEndpointModalOpen}
-            onEndpointModalToggle={setIsEndpointModalOpen}
-            onCustomEndpointsChange={setDraftCustomEndpoints}
-            autoSelect={endpointAutoSelect}
-            onAutoSelectChange={setEndpointAutoSelect}
-            headers={opencodeHeaders}
-            onHeadersChange={handleOpenCodeHeadersChangeWithSync}
-            speedTestEndpoints={speedTestEndpoints}
-          />
-        )}
+        {formFieldsByApp[appId]}
 
         {/* 配置编辑器：Codex、Claude、Gemini、OpenCode 分别使用不同的编辑器 */}
-        {appId === "codex" ? (
-          <>
-            <CodexConfigEditor
-              authValue={codexAuth}
-              configValue={codexConfig}
-              onAuthChange={setCodexAuth}
-              onConfigChange={handleCodexConfigChange}
-              useCommonConfig={useCodexCommonConfigFlag}
-              onCommonConfigToggle={handleCodexCommonConfigToggle}
-              commonConfigSnippet={codexCommonConfigSnippet}
-              onCommonConfigSnippetChange={handleCodexCommonConfigSnippetChange}
-              commonConfigError={codexCommonConfigError}
-              authError={codexAuthError}
-              configError={codexConfigError}
-              onExtract={handleCodexExtract}
-              isExtracting={isCodexExtracting}
-            />
-            {/* 配置验证错误显示 */}
-            <FormField
-              control={form.control}
-              name="settingsConfig"
-              render={() => (
-                <FormItem className="space-y-0">
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </>
-        ) : appId === "gemini" ? (
-          <>
-            <GeminiConfigEditor
-              envValue={geminiEnv}
-              configValue={geminiConfig}
-              onEnvChange={handleGeminiEnvChange}
-              onConfigChange={handleGeminiConfigChange}
-              useCommonConfig={useGeminiCommonConfigFlag}
-              onCommonConfigToggle={handleGeminiCommonConfigToggle}
-              commonConfigSnippet={geminiCommonConfigSnippet}
-              onCommonConfigSnippetChange={
-                handleGeminiCommonConfigSnippetChange
-              }
-              commonConfigError={geminiCommonConfigError}
-              envError={envError}
-              configError={geminiConfigError}
-              onExtract={handleGeminiExtract}
-              isExtracting={isGeminiExtracting}
-            />
-            {/* 配置验证错误显示 */}
-            <FormField
-              control={form.control}
-              name="settingsConfig"
-              render={() => (
-                <FormItem className="space-y-0">
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </>
-        ) : appId === "opencode" ? (
-          <>
-            <OpenCodeConfigEditor
-              providerConfigValue={providerConfigJson}
-              onProviderConfigChange={handleOpenCodeConfigChangeWithSync}
-              configError={configError}
-              useCommonConfig={useOpenCodeCommonConfigFlag}
-              onCommonConfigToggle={handleOpenCodeCommonConfigToggle}
-              commonConfigSnippet={opencodeCommonConfigSnippet}
-              onCommonConfigSnippetChange={
-                handleOpenCodeCommonConfigSnippetChange
-              }
-              commonConfigError={opencodeCommonConfigError}
-              onExtract={handleOpenCodeExtract}
-              isExtracting={isOpenCodeExtracting}
-              onClearCommonConfigError={clearOpenCodeCommonConfigError}
-            />
-            {/* 配置验证错误显示 */}
-            <FormField
-              control={form.control}
-              name="settingsConfig"
-              render={() => (
-                <FormItem className="space-y-0">
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </>
-        ) : (
-          <>
-            <CommonConfigEditor
-              value={form.watch("settingsConfig")}
-              onChange={(value) => form.setValue("settingsConfig", value)}
-              useCommonConfig={useCommonConfig}
-              onCommonConfigToggle={handleCommonConfigToggle}
-              commonConfigSnippet={commonConfigSnippet}
-              onCommonConfigSnippetChange={handleCommonConfigSnippetChange}
-              commonConfigError={commonConfigError}
-              onEditClick={() => setIsCommonConfigModalOpen(true)}
-              isModalOpen={isCommonConfigModalOpen}
-              onModalClose={() => setIsCommonConfigModalOpen(false)}
-              onExtract={handleClaudeExtract}
-              isExtracting={isClaudeExtracting}
-            />
-            {/* 配置验证错误显示 */}
-            <FormField
-              control={form.control}
-              name="settingsConfig"
-              render={() => (
-                <FormItem className="space-y-0">
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </>
-        )}
+        {configEditorByApp[appId]}
 
         {showButtons && (
           <div className="flex justify-end gap-2">

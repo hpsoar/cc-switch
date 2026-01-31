@@ -2,8 +2,9 @@
 //!
 //! 将旧版 config.json (MultiAppConfig) 数据迁移到 SQLite 数据库。
 
+use super::app_columns::{mcp_apps_to_bools, MCP_ENABLED_COLUMNS};
 use super::{lock_conn, to_json_string, Database};
-use crate::app_config::MultiAppConfig;
+use crate::app_config::{AppType, MultiAppConfig};
 use crate::error::AppError;
 use rusqlite::{params, Connection};
 
@@ -123,12 +124,15 @@ impl Database {
         config: &MultiAppConfig,
     ) -> Result<(), AppError> {
         if let Some(servers) = &config.mcp.servers {
+            let enabled_columns = MCP_ENABLED_COLUMNS.join(", ");
+            let placeholders = vec!["?"; MCP_ENABLED_COLUMNS.len()].join(", ");
             for (id, server) in servers {
+                let enabled_values = mcp_apps_to_bools(&server.apps);
+                let query = format!(
+                    \"INSERT OR REPLACE INTO mcp_servers (\n                        id, name, server_config, description, homepage, docs, tags,\n                        {enabled_columns}\n                    ) VALUES (?, ?, ?, ?, ?, ?, ?, {placeholders})\"
+                );
                 tx.execute(
-                    "INSERT OR REPLACE INTO mcp_servers (
-                        id, name, server_config, description, homepage, docs, tags,
-                        enabled_claude, enabled_codex, enabled_gemini
-                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                    &query,
                     params![
                         id,
                         server.name,
@@ -137,9 +141,10 @@ impl Database {
                         server.homepage,
                         server.docs,
                         to_json_string(&server.tags)?,
-                        server.apps.claude,
-                        server.apps.codex,
-                        server.apps.gemini,
+                        enabled_values[0],
+                        enabled_values[1],
+                        enabled_values[2],
+                        enabled_values[3],
                     ],
                 )
                 .map_err(|e| AppError::Database(format!("Migrate mcp server failed: {e}")))?;
@@ -180,9 +185,10 @@ impl Database {
             Ok(())
         };
 
-        migrate_app_prompts(&config.prompts.claude.prompts, "claude")?;
-        migrate_app_prompts(&config.prompts.codex.prompts, "codex")?;
-        migrate_app_prompts(&config.prompts.gemini.prompts, "gemini")?;
+        for app in AppType::all() {
+            let prompts = &config.prompts.for_app(app).prompts;
+            migrate_app_prompts(prompts, app.as_str())?;
+        }
 
         Ok(())
     }
@@ -218,26 +224,15 @@ impl Database {
         tx: &rusqlite::Transaction<'_>,
         config: &MultiAppConfig,
     ) -> Result<(), AppError> {
-        if let Some(snippet) = &config.common_config_snippets.claude {
-            tx.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
-                params!["common_config_claude", snippet],
-            )
-            .map_err(|e| AppError::Database(format!("Migrate settings failed: {e}")))?;
-        }
-        if let Some(snippet) = &config.common_config_snippets.codex {
-            tx.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
-                params!["common_config_codex", snippet],
-            )
-            .map_err(|e| AppError::Database(format!("Migrate settings failed: {e}")))?;
-        }
-        if let Some(snippet) = &config.common_config_snippets.gemini {
-            tx.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
-                params!["common_config_gemini", snippet],
-            )
-            .map_err(|e| AppError::Database(format!("Migrate settings failed: {e}")))?;
+        for app in AppType::all() {
+            if let Some(snippet) = config.common_config_snippets.get(app) {
+                let key = format!("common_config_{}", app.as_str());
+                tx.execute(
+                    "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+                    params![key, snippet],
+                )
+                .map_err(|e| AppError::Database(format!("Migrate settings failed: {e}")))?;
+            }
         }
 
         Ok(())

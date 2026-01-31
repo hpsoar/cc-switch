@@ -126,9 +126,9 @@ pub async fn upsert_mcp_server_in_config(
 
     // 如果 sync_other_side 为 true，也启用其他应用
     if sync_other_side.unwrap_or(false) {
-        new_server.apps.claude = true;
-        new_server.apps.codex = true;
-        new_server.apps.gemini = true;
+        for app in AppType::all() {
+            new_server.apps.set_enabled_for(&app, true);
+        }
     }
 
     McpService::upsert_server(&state, new_server)
@@ -204,10 +204,9 @@ pub async fn toggle_mcp_app(
 #[tauri::command]
 pub async fn import_mcp_from_apps(state: State<'_, AppState>) -> Result<usize, String> {
     let mut total = 0;
-    total += McpService::import_from_claude(&state).unwrap_or(0);
-    total += McpService::import_from_codex(&state).unwrap_or(0);
-    total += McpService::import_from_gemini(&state).unwrap_or(0);
-    total += McpService::import_from_opencode(&state).unwrap_or(0);
+    for app in AppType::all() {
+        total += McpService::import_from_app(&state, app).unwrap_or(0);
+    }
     Ok(total)
 }
 

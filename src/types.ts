@@ -1,3 +1,5 @@
+import type { AppId } from "@/lib/api/types";
+
 export type ProviderCategory =
   | "official" // 官方
   | "cn_official" // 开源官方（原"国产官方"）
@@ -83,12 +85,7 @@ export interface ToolTestResult {
 // ============================================================================
 
 // 统一供应商的应用启用状态
-export interface UniversalProviderApps {
-  claude: boolean;
-  codex: boolean;
-  gemini: boolean;
-  opencode: boolean;
-}
+export type UniversalProviderApps = Record<AppId, boolean>;
 
 // Claude 模型配置
 export interface ClaudeModelConfig {
@@ -155,12 +152,7 @@ export interface McpServer {
   tags?: string[];
   homepage?: string;
   docs?: string;
-  apps?: {
-    claude: boolean;
-    codex: boolean;
-    gemini: boolean;
-    opencode: boolean;
-  };
+  apps?: Record<AppId, boolean>;
 }
 
 export type McpServersMap = Record<string, McpServer>;

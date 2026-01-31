@@ -7,6 +7,7 @@ import { providerPresets } from "@/config/claudeProviderPresets";
 import { codexProviderPresets } from "@/config/codexProviderPresets";
 import { geminiProviderPresets } from "@/config/geminiProviderPresets";
 import { opencodeProviderPresets } from "@/config/opencodeProviderPresets";
+import { getCodexCustomTemplate } from "@/config/codexTemplates";
 import type { ProviderFormData } from "@/lib/schemas/provider";
 import type { ProviderCategory } from "@/types";
 
@@ -75,6 +76,105 @@ export const getProviderPresetEntries = (
   appId: AppId,
 ): ProviderPresetEntry[] => {
   return presetMap[appId];
+};
+
+export interface ProviderFormAppFeatures {
+  supportsTemplateValues: boolean;
+  supportsClaudeCommonConfig: boolean;
+  supportsCodexCommonConfig: boolean;
+  supportsGeminiCommonConfig: boolean;
+  supportsOpenCodeCommonConfig: boolean;
+  supportsGeminiConfigState: boolean;
+  supportsOpenCodeConfigState: boolean;
+  supportsOpenRouterCompat: boolean;
+  supportsOpenCodeNameSync: boolean;
+  supportsApiKeyLink: boolean;
+  speedTestMode: "claude" | "codex" | "gemini" | "none";
+}
+
+const providerFormAppFeatures: Record<AppId, ProviderFormAppFeatures> = {
+  claude: {
+    supportsTemplateValues: true,
+    supportsClaudeCommonConfig: true,
+    supportsCodexCommonConfig: false,
+    supportsGeminiCommonConfig: false,
+    supportsOpenCodeCommonConfig: false,
+    supportsGeminiConfigState: false,
+    supportsOpenCodeConfigState: false,
+    supportsOpenRouterCompat: true,
+    supportsOpenCodeNameSync: false,
+    supportsApiKeyLink: true,
+    speedTestMode: "claude",
+  },
+  codex: {
+    supportsTemplateValues: false,
+    supportsClaudeCommonConfig: false,
+    supportsCodexCommonConfig: true,
+    supportsGeminiCommonConfig: false,
+    supportsOpenCodeCommonConfig: false,
+    supportsGeminiConfigState: false,
+    supportsOpenCodeConfigState: false,
+    supportsOpenRouterCompat: false,
+    supportsOpenCodeNameSync: false,
+    supportsApiKeyLink: true,
+    speedTestMode: "codex",
+  },
+  gemini: {
+    supportsTemplateValues: false,
+    supportsClaudeCommonConfig: false,
+    supportsCodexCommonConfig: false,
+    supportsGeminiCommonConfig: true,
+    supportsOpenCodeCommonConfig: false,
+    supportsGeminiConfigState: true,
+    supportsOpenCodeConfigState: false,
+    supportsOpenRouterCompat: false,
+    supportsOpenCodeNameSync: false,
+    supportsApiKeyLink: true,
+    speedTestMode: "gemini",
+  },
+  opencode: {
+    supportsTemplateValues: false,
+    supportsClaudeCommonConfig: false,
+    supportsCodexCommonConfig: false,
+    supportsGeminiCommonConfig: false,
+    supportsOpenCodeCommonConfig: true,
+    supportsGeminiConfigState: false,
+    supportsOpenCodeConfigState: true,
+    supportsOpenRouterCompat: false,
+    supportsOpenCodeNameSync: true,
+    supportsApiKeyLink: false,
+    speedTestMode: "none",
+  },
+};
+
+export const getProviderFormAppFeatures = (
+  appId: AppId,
+): ProviderFormAppFeatures => providerFormAppFeatures[appId];
+
+export const getPresetCategory = (
+  preset: ProviderPresetEntry["preset"],
+): ProviderCategory | undefined => {
+  if ("category" in preset && preset.category) {
+    return preset.category as ProviderCategory;
+  }
+  if ("isOfficial" in preset && preset.isOfficial) {
+    return "official";
+  }
+  return undefined;
+};
+
+export type ProviderCustomPresetTemplate = {
+  auth?: Record<string, unknown>;
+  config?: string;
+};
+
+export const getCustomPresetTemplate = (
+  appId: AppId,
+): ProviderCustomPresetTemplate | null => {
+  if (appId === "codex") {
+    return getCodexCustomTemplate();
+  }
+  return null;
 };
 
 export type ProviderRequiredFieldType = "apiKey" | "endpoint";

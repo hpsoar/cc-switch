@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::time::timeout;
 
@@ -167,27 +168,8 @@ impl SkillService {
     /// 获取应用的 skills 目录
     pub fn get_app_skills_dir(app: &AppType) -> Result<PathBuf> {
         // 目录覆盖：优先使用用户在 settings.json 中配置的 override 目录
-        match app {
-            AppType::Claude => {
-                if let Some(custom) = crate::settings::get_claude_override_dir() {
-                    return Ok(custom.join("skills"));
-                }
-            }
-            AppType::Codex => {
-                if let Some(custom) = crate::settings::get_codex_override_dir() {
-                    return Ok(custom.join("skills"));
-                }
-            }
-            AppType::Gemini => {
-                if let Some(custom) = crate::settings::get_gemini_override_dir() {
-                    return Ok(custom.join("skills"));
-                }
-            }
-            AppType::OpenCode => {
-                if let Some(custom) = crate::settings::get_opencode_override_dir() {
-                    return Ok(custom.join("skills"));
-                }
-            }
+        if let Some(custom) = crate::settings::get_override_dir(app) {
+            return Ok(custom.join(app.skills_dir_name()));
         }
 
         // 默认路径：回退到用户主目录下的标准位置
@@ -197,12 +179,9 @@ impl SkillService {
             Some("checkPermission"),
         ))?;
 
-        Ok(match app {
-            AppType::Claude => home.join(".claude").join("skills"),
-            AppType::Codex => home.join(".codex").join("skills"),
-            AppType::Gemini => home.join(".gemini").join("skills"),
-            AppType::OpenCode => home.join(".opencode").join("skills"),
-        })
+        Ok(home
+            .join(app.default_config_dir())
+            .join(app.skills_dir_name()))
     }
 
     // ========== 统一管理方法 ==========
@@ -323,8 +302,8 @@ impl SkillService {
             .ok_or_else(|| anyhow!("Skill not found: {id}"))?;
 
         // 从所有应用目录删除
-        for app in [AppType::Claude, AppType::Codex, AppType::Gemini] {
-            let _ = Self::remove_from_app(&skill.directory, &app);
+        for app in AppType::all() {
+            let _ = Self::remove_from_app(&skill.directory, app);
         }
 
         // 从 SSOT 删除
@@ -382,8 +361,8 @@ impl SkillService {
 
         let mut unmanaged: HashMap<String, UnmanagedSkill> = HashMap::new();
 
-        for app in [AppType::Claude, AppType::Codex, AppType::Gemini] {
-            let app_dir = match Self::get_app_skills_dir(&app) {
+        for app in AppType::all() {
+            let app_dir = match Self::get_app_skills_dir(app) {
                 Ok(d) => d,
                 Err(_) => continue,
             };
@@ -427,12 +406,7 @@ impl SkillService {
                 };
 
                 // 添加或更新
-                let app_str = match app {
-                    AppType::Claude => "claude",
-                    AppType::Codex => "codex",
-                    AppType::Gemini => "gemini",
-                    AppType::OpenCode => "opencode",
-                };
+                let app_str = app.as_str();
 
                 unmanaged
                     .entry(dir_name.clone())
@@ -464,20 +438,14 @@ impl SkillService {
             let mut source_path: Option<PathBuf> = None;
             let mut found_in: Vec<String> = Vec::new();
 
-            for app in [AppType::Claude, AppType::Codex, AppType::Gemini] {
-                if let Ok(app_dir) = Self::get_app_skills_dir(&app) {
+            for app in AppType::all() {
+                if let Ok(app_dir) = Self::get_app_skills_dir(app) {
                     let skill_path = app_dir.join(&dir_name);
                     if skill_path.exists() {
                         if source_path.is_none() {
                             source_path = Some(skill_path);
                         }
-                        let app_str = match app {
-                            AppType::Claude => "claude",
-                            AppType::Codex => "codex",
-                            AppType::Gemini => "gemini",
-                            AppType::OpenCode => "opencode",
-                        };
-                        found_in.push(app_str.to_string());
+                        found_in.push(app.as_str().to_string());
                     }
                 }
             }
@@ -510,11 +478,8 @@ impl SkillService {
             // 构建启用状态
             let mut apps = SkillApps::default();
             for app_str in &found_in {
-                match app_str.as_str() {
-                    "claude" => apps.claude = true,
-                    "codex" => apps.codex = true,
-                    "gemini" => apps.gemini = true,
-                    _ => {}
+                if let Ok(app) = AppType::from_str(app_str) {
+                    apps.set_enabled_for(&app, true);
                 }
             }
 
@@ -984,8 +949,8 @@ pub fn migrate_skills_to_ssot(db: &Arc<Database>) -> Result<usize> {
     let mut discovered: HashMap<String, SkillApps> = HashMap::new();
 
     // 扫描各应用目录
-    for app in [AppType::Claude, AppType::Codex, AppType::Gemini] {
-        let app_dir = match SkillService::get_app_skills_dir(&app) {
+    for app in AppType::all() {
+        let app_dir = match SkillService::get_app_skills_dir(app) {
             Ok(d) => d,
             Err(_) => continue,
         };
@@ -1019,7 +984,7 @@ pub fn migrate_skills_to_ssot(db: &Arc<Database>) -> Result<usize> {
             discovered
                 .entry(dir_name)
                 .or_default()
-                .set_enabled_for(&app, true);
+                .set_enabled_for(app, true);
         }
     }
 

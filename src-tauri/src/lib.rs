@@ -1,4 +1,5 @@
 mod app_config;
+mod app_registry;
 mod app_store;
 mod auto_launch;
 mod claude_mcp;

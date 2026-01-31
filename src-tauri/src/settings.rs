@@ -272,6 +272,15 @@ pub fn get_opencode_override_dir() -> Option<PathBuf> {
         .map(|p| resolve_override_path(p))
 }
 
+pub fn get_override_dir(app_type: &AppType) -> Option<PathBuf> {
+    let settings = settings_store().read().ok()?;
+    let accessors = get_app_settings_accessors(app_type);
+    accessors
+        .get_config_dir(&settings)
+        .as_ref()
+        .map(|p| resolve_override_path(p))
+}
+
 // ===== 当前供应商管理函数 =====
 
 /// 获取指定应用类型的当前供应商 ID（从本地 settings 读取）
@@ -280,12 +289,7 @@ pub fn get_opencode_override_dir() -> Option<PathBuf> {
 /// 如果本地没有设置，调用者应该 fallback 到数据库的 `is_current` 字段。
 pub fn get_current_provider(app_type: &AppType) -> Option<String> {
     let settings = settings_store().read().ok()?;
-    match app_type {
-        AppType::Claude => settings.current_provider_claude.clone(),
-        AppType::Codex => settings.current_provider_codex.clone(),
-        AppType::Gemini => settings.current_provider_gemini.clone(),
-        AppType::OpenCode => settings.current_provider_opencode.clone(),
-    }
+    get_current_provider_from_settings(&settings, app_type)
 }
 
 /// 设置指定应用类型的当前供应商 ID（保存到本地 settings）
@@ -295,14 +299,57 @@ pub fn get_current_provider(app_type: &AppType) -> Option<String> {
 pub fn set_current_provider(app_type: &AppType, id: Option<&str>) -> Result<(), AppError> {
     let mut settings = get_settings();
 
-    match app_type {
-        AppType::Claude => settings.current_provider_claude = id.map(|s| s.to_string()),
-        AppType::Codex => settings.current_provider_codex = id.map(|s| s.to_string()),
-        AppType::Gemini => settings.current_provider_gemini = id.map(|s| s.to_string()),
-        AppType::OpenCode => settings.current_provider_opencode = id.map(|s| s.to_string()),
-    }
+    set_current_provider_on_settings(&mut settings, app_type, id);
 
     update_settings(settings)
+}
+
+fn get_current_provider_from_settings(
+    settings: &AppSettings,
+    app_type: &AppType,
+) -> Option<String> {
+    let accessors = get_app_settings_accessors(app_type);
+    (accessors.get_current_provider)(settings)
+}
+
+fn set_current_provider_on_settings(
+    settings: &mut AppSettings,
+    app_type: &AppType,
+    id: Option<&str>,
+) {
+    let accessors = get_app_settings_accessors(app_type);
+    (accessors.set_current_provider)(settings, id.map(|s| s.to_string()));
+}
+
+struct AppSettingsAccessors {
+    get_config_dir: fn(&AppSettings) -> Option<String>,
+    get_current_provider: fn(&AppSettings) -> Option<String>,
+    set_current_provider: fn(&mut AppSettings, Option<String>),
+}
+
+fn get_app_settings_accessors(app_type: &AppType) -> AppSettingsAccessors {
+    match app_type {
+        AppType::Claude => AppSettingsAccessors {
+            get_config_dir: |settings| settings.claude_config_dir.clone(),
+            get_current_provider: |settings| settings.current_provider_claude.clone(),
+            set_current_provider: |settings, id| settings.current_provider_claude = id,
+        },
+        AppType::Codex => AppSettingsAccessors {
+            get_config_dir: |settings| settings.codex_config_dir.clone(),
+            get_current_provider: |settings| settings.current_provider_codex.clone(),
+            set_current_provider: |settings, id| settings.current_provider_codex = id,
+        },
+        AppType::Gemini => AppSettingsAccessors {
+            get_config_dir: |settings| settings.gemini_config_dir.clone(),
+            get_current_provider: |settings| settings.current_provider_gemini.clone(),
+            set_current_provider: |settings, id| settings.current_provider_gemini = id,
+        },
+        AppType::OpenCode => AppSettingsAccessors {
+            get_config_dir: |settings| settings.opencode_config_dir.clone(),
+            get_current_provider: |settings| settings.current_provider_opencode.clone(),
+            set_current_provider: |settings, id| settings.current_provider_opencode = id,
+        },
+    }
 }
 
 /// 获取有效的当前供应商 ID（验证存在性）

@@ -1,10 +1,13 @@
 import { useMemo } from "react";
+
 import type { AppId } from "@/lib/api";
 import type { ProviderCategory } from "@/types";
 import type { ProviderPreset } from "@/config/claudeProviderPresets";
 import type { CodexProviderPreset } from "@/config/codexProviderPresets";
 import type { GeminiProviderPreset } from "@/config/geminiProviderPresets";
 import type { OpenCodeProviderPreset } from "@/config/opencodeProviderPresets";
+
+import { getProviderFormAppFeatures } from "@/apps/providerFormAdapters";
 type PresetEntry = {
   id: string;
   preset:
@@ -32,6 +35,10 @@ export function useApiKeyLink({
   presetEntries,
   formWebsiteUrl,
 }: UseApiKeyLinkProps) {
+  const appFeatures = useMemo(
+    () => getProviderFormAppFeatures(appId),
+    [appId],
+  );
   // 判断是否显示 API Key 获取链接
   const shouldShowApiKeyLink = useMemo(() => {
     return (
@@ -77,10 +84,9 @@ export function useApiKeyLink({
   }, [currentPresetEntry]);
 
   return {
-    shouldShowApiKeyLink:
-      appId === "claude" || appId === "codex" || appId === "gemini"
-        ? shouldShowApiKeyLink
-        : false,
+    shouldShowApiKeyLink: appFeatures.supportsApiKeyLink
+      ? shouldShowApiKeyLink
+      : false,
     websiteUrl: getWebsiteUrl,
     isPartner,
     partnerPromotionKey,

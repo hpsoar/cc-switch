@@ -1,9 +1,12 @@
-import { useState, useEffect } from "react";
-import type { ProviderCategory } from "@/types";
+import { useEffect, useMemo, useState } from "react";
+
 import type { AppId } from "@/lib/api";
-import { providerPresets } from "@/config/claudeProviderPresets";
-import { codexProviderPresets } from "@/config/codexProviderPresets";
-import { geminiProviderPresets } from "@/config/geminiProviderPresets";
+import type { ProviderCategory } from "@/types";
+
+import {
+  getPresetCategory,
+  getProviderPresetEntries,
+} from "@/apps/providerFormAdapters";
 
 interface UseProviderCategoryProps {
   appId: AppId;
@@ -27,6 +30,11 @@ export function useProviderCategory({
     isEditMode ? initialCategory : undefined,
   );
 
+  const presetEntries = useMemo(
+    () => getProviderPresetEntries(appId),
+    [appId],
+  );
+
   useEffect(() => {
     // 编辑模式：只在初始化时设置，后续不自动更新
     if (isEditMode) {
@@ -41,34 +49,13 @@ export function useProviderCategory({
 
     if (!selectedPresetId) return;
 
-    // 从预设 ID 提取索引
-    const match = selectedPresetId.match(/^(claude|codex|gemini)-(\d+)$/);
-    if (!match) return;
+    const presetEntry = presetEntries.find(
+      (entry) => entry.id === selectedPresetId,
+    );
+    if (!presetEntry) return;
 
-    const [, type, indexStr] = match;
-    const index = parseInt(indexStr, 10);
-
-    if (type === "codex" && appId === "codex") {
-      const preset = codexProviderPresets[index];
-      if (preset) {
-        setCategory(
-          preset.category || (preset.isOfficial ? "official" : undefined),
-        );
-      }
-    } else if (type === "claude" && appId === "claude") {
-      const preset = providerPresets[index];
-      if (preset) {
-        setCategory(
-          preset.category || (preset.isOfficial ? "official" : undefined),
-        );
-      }
-    } else if (type === "gemini" && appId === "gemini") {
-      const preset = geminiProviderPresets[index];
-      if (preset) {
-        setCategory(preset.category || undefined);
-      }
-    }
-  }, [appId, selectedPresetId, isEditMode, initialCategory]);
+    setCategory(getPresetCategory(presetEntry.preset));
+  }, [appId, selectedPresetId, isEditMode, initialCategory, presetEntries]);
 
   return { category, setCategory };
 }

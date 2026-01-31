@@ -7,6 +7,9 @@
 //! - 实际文件存储在 ~/.cc-switch/skills/，同步到各应用目录
 
 use crate::app_config::{InstalledSkill, SkillApps};
+use crate::database::app_columns::{
+    read_skill_apps_from_row, skill_apps_to_bools, SKILL_ENABLED_COLUMNS,
+};
 use crate::database::{lock_conn, Database};
 use crate::error::AppError;
 use crate::services::skill::SkillRepo;
@@ -19,12 +22,12 @@ impl Database {
     /// 获取所有已安装的 Skills
     pub fn get_all_installed_skills(&self) -> Result<IndexMap<String, InstalledSkill>, AppError> {
         let conn = lock_conn!(self.conn);
+        let enabled_columns = SKILL_ENABLED_COLUMNS.join(", ");
+        let query = format!(
+            \"SELECT id, name, description, directory, repo_owner, repo_name, repo_branch,\n                        readme_url, {enabled_columns}, installed_at\n                 FROM skills ORDER BY name ASC\"
+        );
         let mut stmt = conn
-            .prepare(
-                "SELECT id, name, description, directory, repo_owner, repo_name, repo_branch,
-                        readme_url, enabled_claude, enabled_codex, enabled_gemini, enabled_opencode, installed_at
-                 FROM skills ORDER BY name ASC",
-            )
+            .prepare(&query)
             .map_err(|e| AppError::Database(e.to_string()))?;
 
         let skill_iter = stmt
@@ -38,13 +41,8 @@ impl Database {
                     repo_name: row.get(5)?,
                     repo_branch: row.get(6)?,
                     readme_url: row.get(7)?,
-                    apps: SkillApps {
-                        claude: row.get(8)?,
-                        codex: row.get(9)?,
-                        gemini: row.get(10)?,
-                        opencode: row.get(11)?,
-                    },
-                    installed_at: row.get(12)?,
+                    apps: read_skill_apps_from_row(row, 8)?,
+                    installed_at: row.get(8 + SKILL_ENABLED_COLUMNS.len())?,
                 })
             })
             .map_err(|e| AppError::Database(e.to_string()))?;
@@ -60,12 +58,12 @@ impl Database {
     /// 获取单个已安装的 Skill
     pub fn get_installed_skill(&self, id: &str) -> Result<Option<InstalledSkill>, AppError> {
         let conn = lock_conn!(self.conn);
+        let enabled_columns = SKILL_ENABLED_COLUMNS.join(", ");
+        let query = format!(
+            \"SELECT id, name, description, directory, repo_owner, repo_name, repo_branch,\n                        readme_url, {enabled_columns}, installed_at\n                 FROM skills WHERE id = ?1\"
+        );
         let mut stmt = conn
-            .prepare(
-                "SELECT id, name, description, directory, repo_owner, repo_name, repo_branch,
-                        readme_url, enabled_claude, enabled_codex, enabled_gemini, enabled_opencode, installed_at
-                 FROM skills WHERE id = ?1",
-            )
+            .prepare(&query)
             .map_err(|e| AppError::Database(e.to_string()))?;
 
         let result = stmt.query_row([id], |row| {
@@ -78,13 +76,8 @@ impl Database {
                 repo_name: row.get(5)?,
                 repo_branch: row.get(6)?,
                 readme_url: row.get(7)?,
-                apps: SkillApps {
-                    claude: row.get(8)?,
-                    codex: row.get(9)?,
-                    gemini: row.get(10)?,
-                    opencode: row.get(11)?,
-                },
-                installed_at: row.get(12)?,
+                apps: read_skill_apps_from_row(row, 8)?,
+                installed_at: row.get(8 + SKILL_ENABLED_COLUMNS.len())?,
             })
         });
 
@@ -98,11 +91,14 @@ impl Database {
     /// 保存 Skill（添加或更新）
     pub fn save_skill(&self, skill: &InstalledSkill) -> Result<(), AppError> {
         let conn = lock_conn!(self.conn);
+        let enabled_columns = SKILL_ENABLED_COLUMNS.join(", ");
+        let placeholders = vec!["?"; SKILL_ENABLED_COLUMNS.len()].join(", ");
+        let query = format!(
+            \"INSERT OR REPLACE INTO skills\n             (id, name, description, directory, repo_owner, repo_name, repo_branch,\n              readme_url, {enabled_columns}, installed_at)\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?, {placeholders}, ?)\"
+        );
+        let enabled_values = skill_apps_to_bools(&skill.apps);
         conn.execute(
-            "INSERT OR REPLACE INTO skills
-             (id, name, description, directory, repo_owner, repo_name, repo_branch,
-              readme_url, enabled_claude, enabled_codex, enabled_gemini, installed_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            &query,
             params![
                 skill.id,
                 skill.name,
@@ -112,9 +108,10 @@ impl Database {
                 skill.repo_name,
                 skill.repo_branch,
                 skill.readme_url,
-                skill.apps.claude,
-                skill.apps.codex,
-                skill.apps.gemini,
+                enabled_values[0],
+                enabled_values[1],
+                enabled_values[2],
+                enabled_values[3],
                 skill.installed_at,
             ],
         )
@@ -142,10 +139,23 @@ impl Database {
     /// 更新 Skill 的应用启用状态
     pub fn update_skill_apps(&self, id: &str, apps: &SkillApps) -> Result<bool, AppError> {
         let conn = lock_conn!(self.conn);
+        let enabled_columns = SKILL_ENABLED_COLUMNS
+            .iter()
+            .map(|column| format!("{column} = ?"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let query = format!("UPDATE skills SET {enabled_columns} WHERE id = ?");
+        let enabled_values = skill_apps_to_bools(apps);
         let affected = conn
             .execute(
-                "UPDATE skills SET enabled_claude = ?1, enabled_codex = ?2, enabled_gemini = ?3 WHERE id = ?4",
-                params![apps.claude, apps.codex, apps.gemini, id],
+                &query,
+                params![
+                    enabled_values[0],
+                    enabled_values[1],
+                    enabled_values[2],
+                    enabled_values[3],
+                    id
+                ],
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
         Ok(affected > 0)

@@ -1,7 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { mcpApi } from "@/lib/api/mcp";
-import type { McpServer } from "@/types";
+
 import type { AppId } from "@/lib/api/types";
+import type { McpServer } from "@/types";
+
+import { getMcpStatusAdapter, mcpStatusAppIds } from "@/apps/mcpAdapters";
+import { mcpApi } from "@/lib/api/mcp";
+
+const invalidateMcpStatusQueries = (
+  queryClient: ReturnType<typeof useQueryClient>,
+) => {
+  mcpStatusAppIds.forEach((appId) => {
+    queryClient.invalidateQueries({ queryKey: ["mcp", "status", appId] });
+  });
+};
 
 /**
  * 查询所有 MCP 服务器（统一管理）
@@ -17,9 +28,10 @@ export function useAllMcpServers() {
  * 查询 Claude MCP 状态（从配置文件读取）
  */
 export function useClaudeMcpStatus() {
+  const adapter = getMcpStatusAdapter("claude");
   return useQuery({
     queryKey: ["mcp", "status", "claude"],
-    queryFn: () => mcpApi.getStatus(),
+    queryFn: () => adapter?.getStatus() ?? Promise.resolve({ enabled: false }),
   });
 }
 
@@ -27,9 +39,10 @@ export function useClaudeMcpStatus() {
  * 查询 OpenCode MCP 状态（从配置文件读取）
  */
 export function useOpenCodeMcpStatus() {
+  const adapter = getMcpStatusAdapter("opencode");
   return useQuery({
     queryKey: ["mcp", "status", "opencode"],
-    queryFn: () => mcpApi.getOpenCodeStatus(),
+    queryFn: () => adapter?.getStatus() ?? Promise.resolve({ enabled: false }),
   });
 }
 
@@ -42,9 +55,7 @@ export function useUpsertMcpServer() {
     mutationFn: (server: McpServer) => mcpApi.upsertUnifiedServer(server),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mcp", "all"] });
-      queryClient.invalidateQueries({
-        queryKey: ["mcp", "status", "opencode"],
-      });
+      invalidateMcpStatusQueries(queryClient);
     },
   });
 }
@@ -66,10 +77,8 @@ export function useToggleMcpApp() {
     }) => mcpApi.toggleApp(serverId, app, enabled),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mcp", "all"] });
-      // 同时失效 OpenCode 状态查询，因为分类数量依赖它
-      queryClient.invalidateQueries({
-        queryKey: ["mcp", "status", "opencode"],
-      });
+      // 同时失效所有状态查询，因为分类数量依赖它
+      invalidateMcpStatusQueries(queryClient);
     },
   });
 }
@@ -83,9 +92,7 @@ export function useDeleteMcpServer() {
     mutationFn: (id: string) => mcpApi.deleteUnifiedServer(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mcp", "all"] });
-      queryClient.invalidateQueries({
-        queryKey: ["mcp", "status", "opencode"],
-      });
+      invalidateMcpStatusQueries(queryClient);
     },
   });
 }
@@ -99,9 +106,7 @@ export function useImportMcpFromApps() {
     mutationFn: () => mcpApi.importFromApps(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mcp", "all"] });
-      queryClient.invalidateQueries({
-        queryKey: ["mcp", "status", "opencode"],
-      });
+      invalidateMcpStatusQueries(queryClient);
     },
   });
 }

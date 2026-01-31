@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
+import type { AppId } from "@/lib/api";
+
 export type ResourceType = "provider" | "prompt" | "mcp" | "skill";
 
 export interface DeepLinkImportRequest {
@@ -7,7 +9,7 @@ export interface DeepLinkImportRequest {
   resource: ResourceType;
 
   // Common fields
-  app?: "claude" | "codex" | "gemini";
+  app?: AppId;
   name?: string;
   enabled?: boolean;
 

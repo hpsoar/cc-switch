@@ -1,33 +1,33 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Form, FormField, FormItem, FormMessage } from "@/components/ui/form";
-import { providerSchema, type ProviderFormData } from "@/lib/schemas/provider";
+
 import type { AppId } from "@/lib/api";
+import type { ProviderFormData } from "@/lib/schemas/provider";
 import type { ProviderCategory, ProviderMeta } from "@/types";
-import {
-  providerPresets,
-  type ProviderPreset,
-} from "@/config/claudeProviderPresets";
-import {
-  codexProviderPresets,
-  type CodexProviderPreset,
-} from "@/config/codexProviderPresets";
-import {
-  geminiProviderPresets,
-  type GeminiProviderPreset,
-} from "@/config/geminiProviderPresets";
-import {
-  opencodeProviderPresets,
-  type OpenCodeProviderPreset,
-} from "@/config/opencodeProviderPresets";
+import type { ProviderPresetEntry } from "@/apps/providerFormAdapters";
+import type { ProviderPreset } from "@/config/claudeProviderPresets";
+import type { CodexProviderPreset } from "@/config/codexProviderPresets";
+import type { GeminiProviderPreset } from "@/config/geminiProviderPresets";
+import type { OpenCodeProviderPreset } from "@/config/opencodeProviderPresets";
 import type { UniversalProviderPreset } from "@/config/universalProviderPresets";
+
+import {
+  buildProviderSettingsConfig,
+  getDefaultSettingsConfig,
+  getProviderPresetEntries,
+  getRequiredProviderFields,
+} from "@/apps/providerFormAdapters";
+import { providerSchema } from "@/lib/schemas/provider";
 import { applyTemplateValues } from "@/utils/providerConfigUtils";
 import { mergeProviderMeta } from "@/utils/providerMetaUtils";
 import { getCodexCustomTemplate } from "@/config/codexTemplates";
+
+import { Button } from "@/components/ui/button";
+import { Form, FormField, FormItem, FormMessage } from "@/components/ui/form";
+
 import CodexConfigEditor from "./CodexConfigEditor";
 import { CommonConfigEditor } from "./CommonConfigEditor";
 import GeminiConfigEditor from "./GeminiConfigEditor";
@@ -55,42 +55,6 @@ import {
   useOpenCodeCommonConfig,
   useTemplateValues,
 } from "./hooks";
-
-const CLAUDE_DEFAULT_CONFIG = JSON.stringify({ env: {} }, null, 2);
-const CODEX_DEFAULT_CONFIG = JSON.stringify({ auth: {}, config: "" }, null, 2);
-const GEMINI_DEFAULT_CONFIG = JSON.stringify(
-  {
-    env: {
-      GOOGLE_GEMINI_BASE_URL: "",
-      GEMINI_API_KEY: "",
-      GEMINI_MODEL: "gemini-3-pro-preview",
-    },
-  },
-  null,
-  2,
-);
-const OPENCODE_DEFAULT_CONFIG = JSON.stringify(
-  {
-    npm: "@ai-sdk/openai-compatible",
-    name: "",
-    options: {
-      baseURL: "",
-      apiKey: "{env:API_KEY}",
-    },
-    models: {},
-  },
-  null,
-  2,
-);
-
-type PresetEntry = {
-  id: string;
-  preset:
-    | ProviderPreset
-    | CodexProviderPreset
-    | GeminiProviderPreset
-    | OpenCodeProviderPreset;
-};
 
 interface ProviderFormProps {
   appId: AppId;
@@ -179,13 +143,7 @@ export function ProviderForm({
       notes: initialData?.notes ?? "",
       settingsConfig: initialData?.settingsConfig
         ? JSON.stringify(initialData.settingsConfig, null, 2)
-        : appId === "codex"
-          ? CODEX_DEFAULT_CONFIG
-          : appId === "gemini"
-            ? GEMINI_DEFAULT_CONFIG
-            : appId === "opencode"
-              ? OPENCODE_DEFAULT_CONFIG
-              : CLAUDE_DEFAULT_CONFIG,
+        : getDefaultSettingsConfig(appId),
       icon: initialData?.icon ?? "",
       iconColor: initialData?.iconColor ?? "",
     }),
@@ -344,28 +302,10 @@ export function ProviderForm({
     [t],
   );
 
-  const presetEntries = useMemo(() => {
-    if (appId === "codex") {
-      return codexProviderPresets.map<PresetEntry>((preset, index) => ({
-        id: `codex-${index}`,
-        preset,
-      }));
-    } else if (appId === "gemini") {
-      return geminiProviderPresets.map<PresetEntry>((preset, index) => ({
-        id: `gemini-${index}`,
-        preset,
-      }));
-    } else if (appId === "opencode") {
-      return opencodeProviderPresets.map<PresetEntry>((preset, index) => ({
-        id: `opencode-${index}`,
-        preset,
-      }));
-    }
-    return providerPresets.map<PresetEntry>((preset, index) => ({
-      id: `claude-${index}`,
-      preset,
-    }));
-  }, [appId]);
+  const presetEntries = useMemo(
+    () => getProviderPresetEntries(appId),
+    [appId],
+  );
 
   // 使用模板变量 hook (仅 Claude 模式)
   const {
@@ -701,115 +641,47 @@ export function ProviderForm({
       return;
     }
 
-    // 非官方供应商必填校验：端点和 API Key
-    if (category !== "official") {
-      if (appId === "claude") {
-        if (!baseUrl.trim()) {
-          toast.error(
-            t("providerForm.endpointRequired", {
-              defaultValue: "非官方供应商请填写 API 端点",
-            }),
-          );
-          return;
-        }
-        if (!apiKey.trim()) {
-          toast.error(
-            t("providerForm.apiKeyRequired", {
-              defaultValue: "非官方供应商请填写 API Key",
-            }),
-          );
-          return;
-        }
-      } else if (appId === "codex") {
-        if (!codexBaseUrl.trim()) {
-          toast.error(
-            t("providerForm.endpointRequired", {
-              defaultValue: "非官方供应商请填写 API 端点",
-            }),
-          );
-          return;
-        }
-        if (!codexApiKey.trim()) {
-          toast.error(
-            t("providerForm.apiKeyRequired", {
-              defaultValue: "非官方供应商请填写 API Key",
-            }),
-          );
-          return;
-        }
-      } else if (appId === "gemini") {
-        if (!geminiBaseUrl.trim()) {
-          toast.error(
-            t("providerForm.endpointRequired", {
-              defaultValue: "非官方供应商请填写 API 端点",
-            }),
-          );
-          return;
-        }
-        if (!geminiApiKey.trim()) {
-          toast.error(
-            t("providerForm.apiKeyRequired", {
-              defaultValue: "非官方供应商请填写 API Key",
-            }),
-          );
-          return;
-        }
-      } else if (appId === "opencode") {
-        if (!opencodeBaseUrl.trim()) {
-          toast.error(
-            t("providerForm.endpointRequired", {
-              defaultValue: "非官方供应商请填写 API 端点",
-            }),
-          );
-          return;
-        }
-        if (!opencodeApiKey.trim()) {
-          toast.error(
-            t("providerForm.apiKeyRequired", {
-              defaultValue: "非官方供应商请填写 API Key",
-            }),
-          );
-          return;
-        }
-      }
+    const requiredFields = getRequiredProviderFields(appId, category, {
+      apiKey,
+      baseUrl,
+      codexApiKey,
+      codexBaseUrl,
+      geminiApiKey,
+      geminiBaseUrl,
+      opencodeApiKey,
+      opencodeBaseUrl,
+    });
+
+    const missingField = requiredFields.find(
+      (field) => !field.value.trim(),
+    );
+    if (missingField) {
+      toast.error(
+        t(
+          missingField.type === "endpoint"
+            ? "providerForm.endpointRequired"
+            : "providerForm.apiKeyRequired",
+          {
+            defaultValue:
+              missingField.type === "endpoint"
+                ? "非官方供应商请填写 API 端点"
+                : "非官方供应商请填写 API Key",
+          },
+        ),
+      );
+      return;
     }
 
-    let settingsConfig: string;
-
-    // Codex: 组合 auth 和 config
-    if (appId === "codex") {
-      try {
-        const authJson = JSON.parse(codexAuth);
-        const configObj = {
-          auth: authJson,
-          config: codexConfig ?? "",
-        };
-        settingsConfig = JSON.stringify(configObj);
-      } catch (err) {
-        // 如果解析失败，使用表单中的配置
-        settingsConfig = values.settingsConfig.trim();
-      }
-    } else if (appId === "gemini") {
-      // Gemini: 组合 env 和 config
-      try {
-        const envObj = envStringToObj(geminiEnv);
-        const configObj = geminiConfig.trim() ? JSON.parse(geminiConfig) : {};
-        const combined = {
-          env: envObj,
-          config: configObj,
-        };
-        settingsConfig = JSON.stringify(combined);
-      } catch (err) {
-        // 如果解析失败，使用表单中的配置
-        settingsConfig = values.settingsConfig.trim();
-      }
-    } else if (appId === "opencode") {
-      // OpenCode: 直接使用 providerConfigJson
-      settingsConfig = providerConfigJson.trim();
-    } else {
-      // Claude: 使用表单配置
-      settingsConfig = values.settingsConfig.trim();
-    }
+    const settingsConfig = buildProviderSettingsConfig({
+      appId,
+      values,
+      codexAuth,
+      codexConfig,
+      geminiEnv,
+      geminiConfig,
+      opencodeConfig: providerConfigJson,
+      envStringToObj,
+    });
 
     const payload: ProviderFormValues = {
       ...values,
@@ -887,14 +759,17 @@ export function ProviderForm({
   };
 
   const groupedPresets = useMemo(() => {
-    return presetEntries.reduce<Record<string, PresetEntry[]>>((acc, entry) => {
+    return presetEntries.reduce<Record<string, ProviderPresetEntry[]>>(
+      (acc, entry) => {
       const category = entry.preset.category ?? "others";
       if (!acc[category]) {
         acc[category] = [];
       }
       acc[category].push(entry);
       return acc;
-    }, {});
+      },
+      {},
+    );
   }, [presetEntries]);
 
   const categoryKeys = useMemo(() => {

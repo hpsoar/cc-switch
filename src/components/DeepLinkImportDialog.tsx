@@ -1,6 +1,18 @@
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
-import { DeepLinkImportRequest, deeplinkApi } from "@/lib/api/deeplink";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+
+import type { DeeplinkConfigView } from "@/apps/deeplinkConfigAdapters";
+import type { DeepLinkImportRequest } from "@/lib/api/deeplink";
+
+import { getDeeplinkConfigView } from "@/apps/deeplinkConfigAdapters";
+import { getDeeplinkModelFields } from "@/apps/deeplinkProviderAdapters";
+import { appLabelMap } from "@/apps/registry";
+import { deeplinkApi } from "@/lib/api/deeplink";
+
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -9,10 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-import { useTranslation } from "react-i18next";
-import { useQueryClient } from "@tanstack/react-query";
+
 import { PromptConfirmation } from "./deeplink/PromptConfirmation";
 import { McpConfirmation } from "./deeplink/McpConfirmation";
 import { SkillConfirmation } from "./deeplink/SkillConfirmation";
@@ -224,14 +233,6 @@ export function DeepLinkImportDialog() {
       : null;
 
   // Parse config file content for display
-  interface ParsedConfig {
-    type: "claude" | "codex" | "gemini";
-    env?: Record<string, string>;
-    auth?: Record<string, string>;
-    tomlConfig?: string;
-    raw: Record<string, unknown>;
-  }
-
   // Helper to decode base64 with UTF-8 support
   const b64ToUtf8 = (str: string): string => {
     try {
@@ -244,36 +245,13 @@ export function DeepLinkImportDialog() {
     }
   };
 
-  const parsedConfig = useMemo((): ParsedConfig | null => {
+  const parsedConfig = useMemo((): DeeplinkConfigView | null => {
     if (!request?.config) return null;
     try {
       const decoded = b64ToUtf8(request.config);
       const parsed = JSON.parse(decoded) as Record<string, unknown>;
 
-      if (request.app === "claude") {
-        // Claude 格式: { env: { ANTHROPIC_AUTH_TOKEN: ..., ... } }
-        return {
-          type: "claude",
-          env: (parsed.env as Record<string, string>) || {},
-          raw: parsed,
-        };
-      } else if (request.app === "codex") {
-        // Codex 格式: { auth: { OPENAI_API_KEY: ... }, config: "TOML string" }
-        return {
-          type: "codex",
-          auth: (parsed.auth as Record<string, string>) || {},
-          tomlConfig: (parsed.config as string) || "",
-          raw: parsed,
-        };
-      } else if (request.app === "gemini") {
-        // Gemini 格式: 扁平结构 { GEMINI_API_KEY: ..., GEMINI_BASE_URL: ... }
-        return {
-          type: "gemini",
-          env: parsed as Record<string, string>,
-          raw: parsed,
-        };
-      }
-      return null;
+      return getDeeplinkConfigView(request.app, parsed);
     } catch (e) {
       console.error("Failed to parse config:", e);
       return null;
@@ -320,6 +298,11 @@ export function DeepLinkImportDialog() {
     }
   };
 
+  const appLabel = request?.app ? appLabelMap[request.app] ?? request.app : "";
+  const modelFields = request
+    ? getDeeplinkModelFields(request.app, request)
+    : [];
+
   return (
     <Dialog open={isOpen && !!request} onOpenChange={setIsOpen}>
       <DialogContent className="sm:max-w-[500px]" zIndex="top">
@@ -364,7 +347,7 @@ export function DeepLinkImportDialog() {
                       {t("deeplink.app")}
                     </div>
                     <div className="col-span-2 text-sm font-medium capitalize">
-                      {request.app}
+                      {appLabel}
                     </div>
                   </div>
 
@@ -424,65 +407,19 @@ export function DeepLinkImportDialog() {
                   </div>
 
                   {/* Model Fields - 根据应用类型显示不同的模型字段 */}
-                  {request.app === "claude" ? (
-                    <>
-                      {/* Claude 四种模型字段 */}
-                      {request.haikuModel && (
-                        <div className="grid grid-cols-3 items-center gap-4">
-                          <div className="font-medium text-sm text-muted-foreground">
-                            {t("deeplink.haikuModel")}
-                          </div>
-                          <div className="col-span-2 text-sm font-mono">
-                            {request.haikuModel}
-                          </div>
-                        </div>
-                      )}
-                      {request.sonnetModel && (
-                        <div className="grid grid-cols-3 items-center gap-4">
-                          <div className="font-medium text-sm text-muted-foreground">
-                            {t("deeplink.sonnetModel")}
-                          </div>
-                          <div className="col-span-2 text-sm font-mono">
-                            {request.sonnetModel}
-                          </div>
-                        </div>
-                      )}
-                      {request.opusModel && (
-                        <div className="grid grid-cols-3 items-center gap-4">
-                          <div className="font-medium text-sm text-muted-foreground">
-                            {t("deeplink.opusModel")}
-                          </div>
-                          <div className="col-span-2 text-sm font-mono">
-                            {request.opusModel}
-                          </div>
-                        </div>
-                      )}
-                      {request.model && (
-                        <div className="grid grid-cols-3 items-center gap-4">
-                          <div className="font-medium text-sm text-muted-foreground">
-                            {t("deeplink.multiModel")}
-                          </div>
-                          <div className="col-span-2 text-sm font-mono">
-                            {request.model}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      {/* Codex 和 Gemini 使用通用 model 字段 */}
-                      {request.model && (
-                        <div className="grid grid-cols-3 items-center gap-4">
-                          <div className="font-medium text-sm text-muted-foreground">
-                            {t("deeplink.model")}
-                          </div>
-                          <div className="col-span-2 text-sm font-mono">
-                            {request.model}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
+                  {modelFields.map((field) => (
+                    <div
+                      key={field.labelKey}
+                      className="grid grid-cols-3 items-center gap-4"
+                    >
+                      <div className="font-medium text-sm text-muted-foreground">
+                        {t(field.labelKey)}
+                      </div>
+                      <div className="col-span-2 text-sm font-mono">
+                        {field.value}
+                      </div>
+                    </div>
+                  ))}
 
                   {/* Notes (if present) */}
                   {request.notes && (
@@ -525,8 +462,7 @@ export function DeepLinkImportDialog() {
                           </div>
 
                           {/* Claude config */}
-                          {parsedConfig.type === "claude" &&
-                            parsedConfig.env && (
+                          {parsedConfig.format === "env" && (
                               <div className="space-y-1.5">
                                 {Object.entries(parsedConfig.env).map(
                                   ([key, value]) => (
@@ -544,10 +480,10 @@ export function DeepLinkImportDialog() {
                                   ),
                                 )}
                               </div>
-                            )}
+                          )}
 
                           {/* Codex config */}
-                          {parsedConfig.type === "codex" && (
+                          {parsedConfig.format === "authToml" && (
                             <div className="space-y-2">
                               {parsedConfig.auth &&
                                 Object.keys(parsedConfig.auth).length > 0 && (
@@ -586,28 +522,6 @@ export function DeepLinkImportDialog() {
                               )}
                             </div>
                           )}
-
-                          {/* Gemini config */}
-                          {parsedConfig.type === "gemini" &&
-                            parsedConfig.env && (
-                              <div className="space-y-1.5">
-                                {Object.entries(parsedConfig.env).map(
-                                  ([key, value]) => (
-                                    <div
-                                      key={key}
-                                      className="grid grid-cols-2 gap-2 text-xs"
-                                    >
-                                      <span className="font-mono text-muted-foreground truncate">
-                                        {key}
-                                      </span>
-                                      <span className="font-mono truncate">
-                                        {maskValue(key, String(value))}
-                                      </span>
-                                    </div>
-                                  ),
-                                )}
-                              </div>
-                            )}
                         </div>
                       )}
 

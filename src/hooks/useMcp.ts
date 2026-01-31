@@ -25,7 +25,7 @@ export function useAllMcpServers() {
 }
 
 /**
- * 查询 Claude MCP 状态（从配置文件读取）
+ * 查询指定应用 MCP 状态（从配置文件读取）
  */
 export function useMcpStatus(appId: AppId) {
   const adapter = getMcpStatusAdapter(appId);
@@ -33,20 +33,6 @@ export function useMcpStatus(appId: AppId) {
     queryKey: ["mcp", "status", appId],
     queryFn: () => adapter?.getStatus() ?? Promise.resolve({ enabled: false }),
   });
-}
-
-/**
- * 查询 Claude MCP 状态（从配置文件读取）
- */
-export function useClaudeMcpStatus() {
-  return useMcpStatus("claude");
-}
-
-/**
- * 查询 OpenCode MCP 状态（从配置文件读取）
- */
-export function useOpenCodeMcpStatus() {
-  return useMcpStatus("opencode");
 }
 
 /**

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import type { Provider } from "@/types";
 import type { EnvConflict } from "@/types/env";
+import { appIds, appRegistry } from "@/apps/registry";
 import { useProvidersQuery } from "@/lib/query";
 import {
   providersApi,
@@ -70,7 +71,7 @@ function App() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
 
-  const [activeApp, setActiveApp] = useState<AppId>("claude");
+  const [activeApp, setActiveApp] = useState<AppId>(() => appIds[0]);
   const [currentView, setCurrentView] = useState<View>("providers");
   const [settingsDefaultTab, setSettingsDefaultTab] = useState("general");
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -115,6 +116,8 @@ function App() {
   const providers = useMemo(() => data?.providers ?? {}, [data]);
   const currentProviderId = data?.currentProviderId ?? "";
   const hasSkillsSupport = true;
+  const supportsProviderTerminal =
+    appRegistry[activeApp].supportsProviderTerminal;
 
   // 🎯 使用 useProviderActions Hook 统一管理所有 Provider 操作
   const {
@@ -384,6 +387,9 @@ function App() {
 
   // 打开提供商终端
   const handleOpenTerminal = async (provider: Provider) => {
+    if (!appRegistry[activeApp].supportsProviderTerminal) {
+      return;
+    }
     try {
       await providersApi.openTerminal(provider.id, activeApp);
       toast.success(
@@ -503,7 +509,9 @@ function App() {
                       onConfigureUsage={setUsageProvider}
                       onOpenWebsite={handleOpenWebsite}
                       onOpenTerminal={
-                        activeApp === "claude" ? handleOpenTerminal : undefined
+                        supportsProviderTerminal
+                          ? handleOpenTerminal
+                          : undefined
                       }
                       onCreate={() => setIsAddOpen(true)}
                     />

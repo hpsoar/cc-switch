@@ -43,39 +43,30 @@ impl TrayTexts {
 /// 托盘应用分区配置
 pub struct TrayAppSection {
     pub app_type: AppType,
-    pub prefix: &'static str,
-    pub header_id: &'static str,
-    pub empty_id: &'static str,
-    pub header_label: &'static str,
-    pub log_name: &'static str,
+    pub prefix: String,
+    pub header_id: String,
+    pub empty_id: String,
+    pub header_label: String,
+    pub log_name: String,
 }
 
-pub const TRAY_SECTIONS: [TrayAppSection; 3] = [
-    TrayAppSection {
-        app_type: AppType::Claude,
-        prefix: "claude_",
-        header_id: "claude_header",
-        empty_id: "claude_empty",
-        header_label: "─── Claude ───",
-        log_name: "Claude",
-    },
-    TrayAppSection {
-        app_type: AppType::Codex,
-        prefix: "codex_",
-        header_id: "codex_header",
-        empty_id: "codex_empty",
-        header_label: "─── Codex ───",
-        log_name: "Codex",
-    },
-    TrayAppSection {
-        app_type: AppType::Gemini,
-        prefix: "gemini_",
-        header_id: "gemini_header",
-        empty_id: "gemini_empty",
-        header_label: "─── Gemini ───",
-        log_name: "Gemini",
-    },
-];
+fn build_tray_sections() -> Vec<TrayAppSection> {
+    AppType::single_provider_apps()
+        .iter()
+        .map(|app_type| {
+            let id = app_type.as_str();
+            let label = app_type.label();
+            TrayAppSection {
+                app_type: *app_type,
+                prefix: format!("{id}_"),
+                header_id: format!("{id}_header"),
+                empty_id: format!("{id}_empty"),
+                header_label: format!("─── {label} ───"),
+                log_name: label.to_string(),
+            }
+        })
+        .collect()
+}
 
 /// 添加供应商分区到菜单
 fn append_provider_section<'a>(
@@ -91,8 +82,8 @@ fn append_provider_section<'a>(
 
     let header = MenuItem::with_id(
         app,
-        section.header_id,
-        section.header_label,
+        section.header_id.as_str(),
+        section.header_label.as_str(),
         false,
         None::<&str>,
     )
@@ -102,7 +93,7 @@ fn append_provider_section<'a>(
     if manager.providers.is_empty() {
         let empty_hint = MenuItem::with_id(
             app,
-            section.empty_id,
+            section.empty_id.as_str(),
             tray_texts.no_provider_hint,
             false,
             None::<&str>,
@@ -149,8 +140,8 @@ fn append_provider_section<'a>(
 
 /// 处理供应商托盘事件
 pub fn handle_provider_tray_event(app: &tauri::AppHandle, event_id: &str) -> bool {
-    for section in TRAY_SECTIONS.iter() {
-        if let Some(provider_id) = event_id.strip_prefix(section.prefix) {
+    for section in build_tray_sections().iter() {
+        if let Some(provider_id) = event_id.strip_prefix(section.prefix.as_str()) {
             log::info!("切换到{}供应商: {provider_id}", section.log_name);
             let app_handle = app.clone();
             let provider_id = provider_id.to_string();
@@ -183,7 +174,7 @@ pub fn create_tray_menu(
     menu_builder = menu_builder.item(&show_main_item).separator();
 
     // 直接添加所有供应商到主菜单（扁平化结构，更简单可靠）
-    for section in TRAY_SECTIONS.iter() {
+    for section in build_tray_sections().iter() {
         let app_type_str = section.app_type.as_str();
         let providers = app_state.db.get_all_providers(app_type_str)?;
 

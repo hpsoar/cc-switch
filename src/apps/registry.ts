@@ -12,6 +12,7 @@ export interface AppDefinition {
   configDirPlaceholderKey: string;
   supportsEnvConflict: boolean;
   hasCliTool: boolean;
+  supportsProviderTerminal: boolean;
 }
 
 export type AppConfigDirSettingKey =
@@ -29,6 +30,7 @@ export const appRegistry = {
     endpointTimeoutSecs: 8,
     supportsEnvConflict: true,
     hasCliTool: true,
+    supportsProviderTerminal: true,
     configDirSettingKey: "claudeConfigDir",
     defaultConfigDirName: ".claude",
     configDirLabelKey: "settings.claudeConfigDir",
@@ -42,6 +44,7 @@ export const appRegistry = {
     endpointTimeoutSecs: 12,
     supportsEnvConflict: true,
     hasCliTool: true,
+    supportsProviderTerminal: false,
     configDirSettingKey: "codexConfigDir",
     defaultConfigDirName: ".codex",
     configDirLabelKey: "settings.codexConfigDir",
@@ -55,6 +58,7 @@ export const appRegistry = {
     endpointTimeoutSecs: 8,
     supportsEnvConflict: true,
     hasCliTool: true,
+    supportsProviderTerminal: false,
     configDirSettingKey: "geminiConfigDir",
     defaultConfigDirName: ".gemini",
     configDirLabelKey: "settings.geminiConfigDir",
@@ -68,6 +72,7 @@ export const appRegistry = {
     endpointTimeoutSecs: 8,
     supportsEnvConflict: false,
     hasCliTool: false,
+    supportsProviderTerminal: false,
     configDirSettingKey: "opencodeConfigDir",
     defaultConfigDirName: ".config/opencode",
     configDirLabelKey: "settings.opencodeConfigDir",

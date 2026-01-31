@@ -1,9 +1,11 @@
 import { useCallback } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { providersApi, settingsApi, type AppId } from "@/lib/api";
+import type { AppId } from "@/lib/api";
 import type { Provider, UsageScript } from "@/types";
+import { getProviderActionAdapter } from "@/apps/providerActionAdapters";
+import { providersApi } from "@/lib/api";
 import {
   useAddProviderMutation,
   useUpdateProviderMutation,
@@ -25,29 +27,13 @@ export function useProviderActions(activeApp: AppId) {
   const deleteProviderMutation = useDeleteProviderMutation(activeApp);
   const switchProviderMutation = useSwitchProviderMutation(activeApp);
 
-  // Claude 插件同步逻辑
-  const syncClaudePlugin = useCallback(
+  const syncProviderAction = useCallback(
     async (provider: Provider) => {
-      if (activeApp !== "claude") return;
-
-      try {
-        const settings = await settingsApi.get();
-        if (!settings?.enableClaudePluginIntegration) {
-          return;
-        }
-
-        const isOfficial = provider.category === "official";
-        await settingsApi.applyClaudePluginConfig({ official: isOfficial });
-
-        // 静默执行，不显示成功通知
-      } catch (error) {
-        const detail =
-          extractErrorMessage(error) ||
-          t("notifications.syncClaudePluginFailed", {
-            defaultValue: "同步 Claude 插件失败",
-          });
-        toast.error(detail, { duration: 4200 });
+      const adapter = getProviderActionAdapter(activeApp);
+      if (!adapter.onSwitch) {
+        return;
       }
+      await adapter.onSwitch(provider, { t });
     },
     [activeApp, t],
   );
@@ -83,12 +69,12 @@ export function useProviderActions(activeApp: AppId) {
     async (provider: Provider) => {
       try {
         await switchProviderMutation.mutateAsync(provider.id);
-        await syncClaudePlugin(provider);
+        await syncProviderAction(provider);
       } catch {
         // 错误提示由 mutation 与同步函数处理
       }
     },
-    [switchProviderMutation, syncClaudePlugin],
+    [switchProviderMutation, syncProviderAction],
   );
 
   // 删除供应商

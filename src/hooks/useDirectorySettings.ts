@@ -17,6 +17,20 @@ export type ResolvedDirectories = Record<AppId, string> & {
   appConfig: string;
 };
 
+const createEmptyAppRecord = (): Record<AppId, string> =>
+  appIds.reduce(
+    (acc, appId) => {
+      acc[appId] = "";
+      return acc;
+    },
+    {} as Record<AppId, string>,
+  );
+
+const createEmptyResolvedDirectories = (): ResolvedDirectories => ({
+  appConfig: "",
+  ...createEmptyAppRecord(),
+});
+
 const sanitizeDir = (value?: string | null): string | undefined => {
   if (!value) return undefined;
   const trimmed = value.trim();
@@ -92,22 +106,14 @@ export function useDirectorySettings({
   const [appConfigDir, setAppConfigDir] = useState<string | undefined>(
     undefined,
   );
-  const [resolvedDirs, setResolvedDirs] = useState<ResolvedDirectories>({
-    appConfig: "",
-    claude: "",
-    codex: "",
-    gemini: "",
-    opencode: "",
-  });
+  const [resolvedDirs, setResolvedDirs] = useState<ResolvedDirectories>(
+    () => createEmptyResolvedDirectories(),
+  );
   const [isLoading, setIsLoading] = useState(true);
 
-  const defaultsRef = useRef<ResolvedDirectories>({
-    appConfig: "",
-    claude: "",
-    codex: "",
-    gemini: "",
-    opencode: "",
-  });
+  const defaultsRef = useRef<ResolvedDirectories>(
+    createEmptyResolvedDirectories(),
+  );
   const initialAppConfigDirRef = useRef<string | undefined>(undefined);
 
   // 加载目录信息

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { AppConfigDirSettingKey } from "@/apps/registry";
 import type { Settings } from "@/types";
+import { appConfigDirSettingKeyMap, appIds } from "@/apps/registry";
 import { useSettingsQuery } from "@/lib/query";
 
 type Language = "zh" | "en" | "ja";
@@ -19,6 +21,29 @@ const sanitizeDir = (value?: string | null): string | undefined => {
   if (!value) return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const getConfigDirValue = (
+  data: Settings | null,
+  key: AppConfigDirSettingKey,
+): string | undefined => {
+  if (!data) return undefined;
+  const record = data as Partial<
+    Record<AppConfigDirSettingKey, string | null | undefined>
+  >;
+  return sanitizeDir(record[key]);
+};
+
+const buildConfigDirOverrides = (
+  data: Settings | null,
+): Partial<SettingsFormState> => {
+  const overrides: Partial<Record<AppConfigDirSettingKey, string | undefined>> =
+    {};
+  appIds.forEach((appId) => {
+    const key = appConfigDirSettingKeyMap[appId];
+    overrides[key] = getConfigDirValue(data, key);
+  });
+  return overrides as Partial<SettingsFormState>;
 };
 
 export interface UseSettingsFormResult {
@@ -84,10 +109,7 @@ export function useSettingsForm(): UseSettingsFormResult {
       enableClaudePluginIntegration:
         data.enableClaudePluginIntegration ?? false,
       skipClaudeOnboarding: data.skipClaudeOnboarding ?? true,
-      claudeConfigDir: sanitizeDir(data.claudeConfigDir),
-      codexConfigDir: sanitizeDir(data.codexConfigDir),
-      geminiConfigDir: sanitizeDir(data.geminiConfigDir),
-      opencodeConfigDir: sanitizeDir(data.opencodeConfigDir),
+      ...buildConfigDirOverrides(data),
       language: normalizedLanguage,
     };
 
@@ -141,10 +163,7 @@ export function useSettingsForm(): UseSettingsFormResult {
         enableClaudePluginIntegration:
           serverData.enableClaudePluginIntegration ?? false,
         skipClaudeOnboarding: serverData.skipClaudeOnboarding ?? true,
-        claudeConfigDir: sanitizeDir(serverData.claudeConfigDir),
-        codexConfigDir: sanitizeDir(serverData.codexConfigDir),
-        geminiConfigDir: sanitizeDir(serverData.geminiConfigDir),
-        opencodeConfigDir: sanitizeDir(serverData.opencodeConfigDir),
+        ...buildConfigDirOverrides(serverData),
         language: normalizedLanguage,
       };
 

@@ -1,8 +1,12 @@
-import { useTranslation } from "react-i18next";
 import { Edit2, Trash2, RefreshCw, Globe } from "lucide-react";
+import { useTranslation } from "react-i18next";
+
+import type { UniversalProvider } from "@/types";
+
+import { universalProviderAppOptions } from "@/apps/universalProviderAdapters";
+
 import { Button } from "@/components/ui/button";
 import { ProviderIcon } from "@/components/ProviderIcon";
-import type { UniversalProvider } from "@/types";
 
 interface UniversalProviderCardProps {
   provider: UniversalProvider;
@@ -20,11 +24,9 @@ export function UniversalProviderCard({
   const { t } = useTranslation();
 
   // 获取启用的应用列表
-  const enabledApps: string[] = [
-    provider.apps.claude ? "Claude" : null,
-    provider.apps.codex ? "Codex" : null,
-    provider.apps.gemini ? "Gemini" : null,
-  ].filter((app): app is string => app !== null);
+  const enabledApps = universalProviderAppOptions.filter(
+    (app) => provider.apps[app.id],
+  );
 
   return (
     <div className="group relative rounded-xl border border-border/50 bg-card p-4 transition-all hover:border-border hover:shadow-md">
@@ -88,10 +90,10 @@ export function UniversalProviderCard({
         <div className="flex flex-wrap gap-1.5">
           {enabledApps.map((app) => (
             <span
-              key={app}
+              key={app.id}
               className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
             >
-              {app}
+              {app.label}
             </span>
           ))}
           {enabledApps.length === 0 && (

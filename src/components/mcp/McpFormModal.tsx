@@ -1,6 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
-import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Save,
   Plus,
@@ -17,16 +15,16 @@ import {
   ChevronRight,
   Play,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import JsonEditor from "@/components/JsonEditor";
-import ToolTestModal from "./ToolTestModal";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+
 import type { AppId } from "@/lib/api/types";
-import { McpServer, McpServerSpec, McpTestResult } from "@/types";
-import McpWizardModal from "./McpWizardModal";
+import type { McpServer, McpServerSpec, McpTestResult } from "@/types";
+
+import { appList } from "@/apps/registry";
 import { mcpPresets, getMcpPresetWithDescription } from "@/config/mcpPresets";
 import { mcpApi } from "@/lib/api/mcp";
+import { useUpsertMcpServer } from "@/hooks/useMcp";
 import {
   extractErrorMessage,
   translateMcpBackendError,
@@ -38,9 +36,16 @@ import {
 } from "@/utils/tomlUtils";
 import { normalizeTomlText } from "@/utils/textNormalization";
 import { parseSmartMcpJson } from "@/utils/formatters";
-import { useMcpValidation } from "./useMcpValidation";
-import { useUpsertMcpServer } from "@/hooks/useMcp";
+
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { FullScreenPanel } from "@/components/common/FullScreenPanel";
+import JsonEditor from "@/components/JsonEditor";
+
+import McpWizardModal from "./McpWizardModal";
+import ToolTestModal from "./ToolTestModal";
+import { useMcpValidation } from "./useMcpValidation";
 
 interface McpFormModalProps {
   editingId?: string;
@@ -78,21 +83,17 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   const [formDocs, setFormDocs] = useState(initialData?.docs || "");
   const [formTags, setFormTags] = useState(initialData?.tags?.join(", ") || "");
 
-  const [enabledApps, setEnabledApps] = useState<{
-    claude: boolean;
-    codex: boolean;
-    gemini: boolean;
-    opencode: boolean;
-  }>(() => {
+  const [enabledApps, setEnabledApps] = useState<Record<AppId, boolean>>(() => {
     if (initialData?.apps) {
       return { ...initialData.apps };
     }
-    return {
-      claude: defaultEnabledApps.includes("claude"),
-      codex: defaultEnabledApps.includes("codex"),
-      gemini: defaultEnabledApps.includes("gemini"),
-      opencode: defaultEnabledApps.includes("opencode"),
-    };
+    return appList.reduce(
+      (acc, app) => {
+        acc[app.id] = defaultEnabledApps.includes(app.id);
+        return acc;
+      },
+      {} as Record<AppId, boolean>,
+    );
   });
 
   const isEditing = !!editingId;
@@ -613,69 +614,31 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                 {t("mcp.form.enabledApps")}
               </label>
               <div className="flex flex-wrap gap-4">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="enable-claude"
-                    checked={enabledApps.claude}
-                    onCheckedChange={(checked: boolean) =>
-                      setEnabledApps({ ...enabledApps, claude: checked })
-                    }
-                  />
-                  <label
-                    htmlFor="enable-claude"
-                    className="text-sm text-foreground cursor-pointer select-none"
-                  >
-                    {t("mcp.unifiedPanel.apps.claude")}
-                  </label>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="enable-codex"
-                    checked={enabledApps.codex}
-                    onCheckedChange={(checked: boolean) =>
-                      setEnabledApps({ ...enabledApps, codex: checked })
-                    }
-                  />
-                  <label
-                    htmlFor="enable-codex"
-                    className="text-sm text-foreground cursor-pointer select-none"
-                  >
-                    {t("mcp.unifiedPanel.apps.codex")}
-                  </label>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="enable-gemini"
-                    checked={enabledApps.gemini}
-                    onCheckedChange={(checked: boolean) =>
-                      setEnabledApps({ ...enabledApps, gemini: checked })
-                    }
-                  />
-                  <label
-                    htmlFor="enable-gemini"
-                    className="text-sm text-foreground cursor-pointer select-none"
-                  >
-                    {t("mcp.unifiedPanel.apps.gemini")}
-                  </label>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="enable-opencode"
-                    checked={enabledApps.opencode}
-                    onCheckedChange={(checked: boolean) =>
-                      setEnabledApps({ ...enabledApps, opencode: checked })
-                    }
-                  />
-                  <label
-                    htmlFor="enable-opencode"
-                    className="text-sm text-foreground cursor-pointer select-none"
-                  >
-                    {t("mcp.unifiedPanel.apps.opencode")}
-                  </label>
-                </div>
+                {appList.map((app) => {
+                  const checkboxId = `enable-${app.id}`;
+                  return (
+                    <div key={app.id} className="flex items-center gap-2">
+                      <Checkbox
+                        id={checkboxId}
+                        checked={enabledApps[app.id]}
+                        onCheckedChange={(checked: boolean) =>
+                          setEnabledApps({
+                            ...enabledApps,
+                            [app.id]: checked,
+                          })
+                        }
+                      />
+                      <label
+                        htmlFor={checkboxId}
+                        className="text-sm text-foreground cursor-pointer select-none"
+                      >
+                        {t(`mcp.unifiedPanel.apps.${app.id}`, {
+                          defaultValue: app.label,
+                        })}
+                      </label>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

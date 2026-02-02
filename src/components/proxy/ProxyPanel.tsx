@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQueries } from "@tanstack/react-query";
 import {
   Activity,
   Clock,
@@ -11,10 +12,10 @@ import {
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import type { AppId } from "@/lib/api";
-import type { ProxyStatus } from "@/types/proxy";
-import { appIds, appLabelMap } from "@/apps/registry";
+import type { ProxyStatus, FailoverQueueItem } from "@/types/proxy";
+import { appIds, appLabelMap, proxyFailoverAppIds } from "@/apps/registry";
 import { useProxyStatus } from "@/hooks/useProxyStatus";
-import { useFailoverQueue, useProviderHealth } from "@/lib/query/failover";
+import { useProviderHealth } from "@/lib/query/failover";
 import {
   useProxyTakeoverStatus,
   useSetProxyTakeoverForApp,
@@ -26,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ProviderHealthBadge } from "@/components/providers/ProviderHealthBadge";
+import { failoverApi } from "@/lib/api/failover";
 
 export function ProxyPanel() {
   const { t } = useTranslation();
@@ -51,12 +53,24 @@ export function ProxyPanel() {
     }
   }, [globalConfig]);
 
-  // 获取所有三个应用类型的故障转移队列（不包含当前供应商）
+  // 获取各应用类型的故障转移队列（不包含当前供应商）
   // 当前供应商始终优先，队列仅用于失败后的备用顺序
-  const { data: claudeQueue = [] } = useFailoverQueue("claude");
-  const { data: codexQueue = [] } = useFailoverQueue("codex");
-  const { data: geminiQueue = [] } = useFailoverQueue("gemini");
-  const { data: openCodeQueue = [] } = useFailoverQueue("opencode");
+  const failoverQueueResults = useQueries({
+    queries: proxyFailoverAppIds.map((appId) => ({
+      queryKey: ["failoverQueue", appId],
+      queryFn: () => failoverApi.getFailoverQueue(appId),
+    })),
+  });
+  const failoverQueues = proxyFailoverAppIds.reduce<
+    Record<AppId, FailoverQueueItem[]>
+  >((acc, appId, index) => {
+    const result = failoverQueueResults[index];
+    acc[appId] = (result?.data as FailoverQueueItem[] | undefined) ?? [];
+    return acc;
+  }, {} as Record<AppId, FailoverQueueItem[]>);
+  const hasFailoverQueues = failoverQueueResults.some(
+    (result) => (result.data?.length ?? 0) > 0,
+  );
 
   const appLabels = appLabelMap;
   const takeoverApps: AppId[] = appIds;
@@ -326,10 +340,7 @@ export function ProxyPanel() {
               </div>
 
               {/* 供应商队列 - 按应用类型分组展示 */}
-              {(claudeQueue.length > 0 ||
-                codexQueue.length > 0 ||
-                geminiQueue.length > 0 ||
-                openCodeQueue.length > 0) && (
+              {hasFailoverQueues && (
                 <div className="pt-3 border-t border-border space-y-3">
                   <div className="flex items-center gap-2">
                     <ListOrdered className="h-3.5 w-3.5 text-muted-foreground" />
@@ -338,57 +349,22 @@ export function ProxyPanel() {
                     </p>
                   </div>
 
-                  {/* Claude 队列 */}
-                  {claudeQueue.length > 0 && (
-                    <ProviderQueueGroup
-                      appType="claude"
-                      appLabel="Claude"
-                      targets={claudeQueue.map((item) => ({
-                        id: item.providerId,
-                        name: item.providerName,
-                      }))}
-                      status={status}
-                    />
-                  )}
-
-                  {/* Codex 队列 */}
-                  {codexQueue.length > 0 && (
-                    <ProviderQueueGroup
-                      appType="codex"
-                      appLabel="Codex"
-                      targets={codexQueue.map((item) => ({
-                        id: item.providerId,
-                        name: item.providerName,
-                      }))}
-                      status={status}
-                    />
-                  )}
-
-                  {/* Gemini 队列 */}
-                  {geminiQueue.length > 0 && (
-                    <ProviderQueueGroup
-                      appType="gemini"
-                      appLabel="Gemini"
-                      targets={geminiQueue.map((item) => ({
-                        id: item.providerId,
-                        name: item.providerName,
-                      }))}
-                      status={status}
-                    />
-                  )}
-
-                  {/* OpenCode 队列 */}
-                  {openCodeQueue.length > 0 && (
-                    <ProviderQueueGroup
-                      appType="opencode"
-                      appLabel="OpenCode"
-                      targets={openCodeQueue.map((item) => ({
-                        id: item.providerId,
-                        name: item.providerName,
-                      }))}
-                      status={status}
-                    />
-                  )}
+                  {proxyFailoverAppIds.map((appId) => {
+                    const queue = failoverQueues[appId] ?? [];
+                    if (queue.length === 0) return null;
+                    return (
+                      <ProviderQueueGroup
+                        key={appId}
+                        appType={appId}
+                        appLabel={appLabels[appId]}
+                        targets={queue.map((item) => ({
+                          id: item.providerId,
+                          name: item.providerName,
+                        }))}
+                        status={status}
+                      />
+                    );
+                  })}
                 </div>
               )}
             </div>

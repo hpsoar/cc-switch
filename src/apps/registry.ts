@@ -13,6 +13,7 @@ export interface AppDefinition {
   supportsEnvConflict: boolean;
   hasCliTool: boolean;
   supportsProviderTerminal: boolean;
+  supportsProxyFailover: boolean;
 }
 
 export type AppConfigDirSettingKey =
@@ -31,6 +32,7 @@ export const appRegistry = {
     supportsEnvConflict: true,
     hasCliTool: true,
     supportsProviderTerminal: true,
+    supportsProxyFailover: true,
     configDirSettingKey: "claudeConfigDir",
     defaultConfigDirName: ".claude",
     configDirLabelKey: "settings.claudeConfigDir",
@@ -45,6 +47,7 @@ export const appRegistry = {
     supportsEnvConflict: true,
     hasCliTool: true,
     supportsProviderTerminal: false,
+    supportsProxyFailover: true,
     configDirSettingKey: "codexConfigDir",
     defaultConfigDirName: ".codex",
     configDirLabelKey: "settings.codexConfigDir",
@@ -59,6 +62,7 @@ export const appRegistry = {
     supportsEnvConflict: true,
     hasCliTool: true,
     supportsProviderTerminal: false,
+    supportsProxyFailover: true,
     configDirSettingKey: "geminiConfigDir",
     defaultConfigDirName: ".gemini",
     configDirLabelKey: "settings.geminiConfigDir",
@@ -73,6 +77,7 @@ export const appRegistry = {
     supportsEnvConflict: false,
     hasCliTool: false,
     supportsProviderTerminal: false,
+    supportsProxyFailover: true,
     configDirSettingKey: "opencodeConfigDir",
     defaultConfigDirName: ".config/opencode",
     configDirLabelKey: "settings.opencodeConfigDir",
@@ -81,6 +86,10 @@ export const appRegistry = {
 } as const satisfies Record<AppId, AppDefinition>;
 
 export const appList: AppDefinition[] = appIds.map((id) => appRegistry[id]);
+
+export const proxyFailoverAppIds: AppId[] = appList
+  .filter((app) => app.supportsProxyFailover)
+  .map((app) => app.id);
 
 export { appIds };
 

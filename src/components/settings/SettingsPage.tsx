@@ -29,6 +29,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { settingsApi } from "@/lib/api";
+import { proxyFailoverAppIds, appRegistry } from "@/apps/registry";
 import { LanguageSettings } from "@/components/settings/LanguageSettings";
 import { ThemeSettings } from "@/components/settings/ThemeSettings";
 import { WindowSettings } from "@/components/settings/WindowSettings";
@@ -63,6 +64,8 @@ export function SettingsPage({
   onImportSuccess,
   defaultTab = "general",
 }: SettingsDialogProps) {
+  const failoverTabs = proxyFailoverAppIds;
+  const failoverDefaultTab = failoverTabs[0] ?? "claude";
   const { t } = useTranslation();
   const {
     settings,
@@ -366,87 +369,53 @@ export function SettingsPage({
                           )}
 
                           {/* 故障转移设置 - 按应用分组 */}
-                          <Tabs defaultValue="claude" className="w-full">
-                            <TabsList className="grid w-full grid-cols-3">
-                              <TabsTrigger value="claude">Claude</TabsTrigger>
-                              <TabsTrigger value="codex">Codex</TabsTrigger>
-                              <TabsTrigger value="gemini">Gemini</TabsTrigger>
+                          <Tabs
+                            defaultValue={failoverDefaultTab}
+                            className="w-full"
+                          >
+                            <TabsList
+                              className="grid w-full"
+                              style={{
+                                gridTemplateColumns: `repeat(${Math.max(
+                                  failoverTabs.length,
+                                  1,
+                                )}, minmax(0, 1fr))`,
+                              }}
+                            >
+                              {failoverTabs.map((appId) => (
+                                <TabsTrigger key={appId} value={appId}>
+                                  {appRegistry[appId].label}
+                                </TabsTrigger>
+                              ))}
                             </TabsList>
-                            <TabsContent
-                              value="claude"
-                              className="mt-4 space-y-6"
-                            >
-                              <div className="space-y-4">
-                                <div>
-                                  <h4 className="text-sm font-semibold">
-                                    {t("proxy.failoverQueue.title")}
-                                  </h4>
-                                  <p className="text-xs text-muted-foreground">
-                                    {t("proxy.failoverQueue.description")}
-                                  </p>
+                            {failoverTabs.map((appId) => (
+                              <TabsContent
+                                key={appId}
+                                value={appId}
+                                className="mt-4 space-y-6"
+                              >
+                                <div className="space-y-4">
+                                  <div>
+                                    <h4 className="text-sm font-semibold">
+                                      {t("proxy.failoverQueue.title")}
+                                    </h4>
+                                    <p className="text-xs text-muted-foreground">
+                                      {t("proxy.failoverQueue.description")}
+                                    </p>
+                                  </div>
+                                  <FailoverQueueManager
+                                    appType={appId}
+                                    disabled={!isRunning}
+                                  />
                                 </div>
-                                <FailoverQueueManager
-                                  appType="claude"
-                                  disabled={!isRunning}
-                                />
-                              </div>
-                              <div className="border-t border-border/50 pt-6">
-                                <AutoFailoverConfigPanel
-                                  appType="claude"
-                                  disabled={!isRunning}
-                                />
-                              </div>
-                            </TabsContent>
-                            <TabsContent
-                              value="codex"
-                              className="mt-4 space-y-6"
-                            >
-                              <div className="space-y-4">
-                                <div>
-                                  <h4 className="text-sm font-semibold">
-                                    {t("proxy.failoverQueue.title")}
-                                  </h4>
-                                  <p className="text-xs text-muted-foreground">
-                                    {t("proxy.failoverQueue.description")}
-                                  </p>
+                                <div className="border-t border-border/50 pt-6">
+                                  <AutoFailoverConfigPanel
+                                    appType={appId}
+                                    disabled={!isRunning}
+                                  />
                                 </div>
-                                <FailoverQueueManager
-                                  appType="codex"
-                                  disabled={!isRunning}
-                                />
-                              </div>
-                              <div className="border-t border-border/50 pt-6">
-                                <AutoFailoverConfigPanel
-                                  appType="codex"
-                                  disabled={!isRunning}
-                                />
-                              </div>
-                            </TabsContent>
-                            <TabsContent
-                              value="gemini"
-                              className="mt-4 space-y-6"
-                            >
-                              <div className="space-y-4">
-                                <div>
-                                  <h4 className="text-sm font-semibold">
-                                    {t("proxy.failoverQueue.title")}
-                                  </h4>
-                                  <p className="text-xs text-muted-foreground">
-                                    {t("proxy.failoverQueue.description")}
-                                  </p>
-                                </div>
-                                <FailoverQueueManager
-                                  appType="gemini"
-                                  disabled={!isRunning}
-                                />
-                              </div>
-                              <div className="border-t border-border/50 pt-6">
-                                <AutoFailoverConfigPanel
-                                  appType="gemini"
-                                  disabled={!isRunning}
-                                />
-                              </div>
-                            </TabsContent>
+                              </TabsContent>
+                            ))}
                           </Tabs>
                         </div>
                       </AccordionContent>

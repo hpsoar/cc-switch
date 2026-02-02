@@ -24,7 +24,9 @@ impl Database {
         let conn = lock_conn!(self.conn);
         let enabled_columns = SKILL_ENABLED_COLUMNS.join(", ");
         let query = format!(
-            \"SELECT id, name, description, directory, repo_owner, repo_name, repo_branch,\n                        readme_url, {enabled_columns}, installed_at\n                 FROM skills ORDER BY name ASC\"
+            "SELECT id, name, description, directory, repo_owner, repo_name, repo_branch,
+                        readme_url, {enabled_columns}, installed_at
+                 FROM skills ORDER BY name ASC"
         );
         let mut stmt = conn
             .prepare(&query)
@@ -60,7 +62,9 @@ impl Database {
         let conn = lock_conn!(self.conn);
         let enabled_columns = SKILL_ENABLED_COLUMNS.join(", ");
         let query = format!(
-            \"SELECT id, name, description, directory, repo_owner, repo_name, repo_branch,\n                        readme_url, {enabled_columns}, installed_at\n                 FROM skills WHERE id = ?1\"
+            "SELECT id, name, description, directory, repo_owner, repo_name, repo_branch,
+                        readme_url, {enabled_columns}, installed_at
+                 FROM skills WHERE id = ?1"
         );
         let mut stmt = conn
             .prepare(&query)
@@ -94,7 +98,10 @@ impl Database {
         let enabled_columns = SKILL_ENABLED_COLUMNS.join(", ");
         let placeholders = vec!["?"; SKILL_ENABLED_COLUMNS.len()].join(", ");
         let query = format!(
-            \"INSERT OR REPLACE INTO skills\n             (id, name, description, directory, repo_owner, repo_name, repo_branch,\n              readme_url, {enabled_columns}, installed_at)\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?, {placeholders}, ?)\"
+            "INSERT OR REPLACE INTO skills
+             (id, name, description, directory, repo_owner, repo_name, repo_branch,
+              readme_url, {enabled_columns}, installed_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, {placeholders}, ?)"
         );
         let enabled_values = skill_apps_to_bools(&skill.apps);
         conn.execute(

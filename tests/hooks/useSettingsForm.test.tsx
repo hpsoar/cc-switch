@@ -145,6 +145,8 @@ describe("useSettingsForm Hook", () => {
         showInTray: false,
         minimizeToTrayOnClose: false,
         enableClaudePluginIntegration: true,
+        skipClaudeOnboarding: true,
+        launchOnStartup: false,
         claudeConfigDir: "  /reset  ",
         codexConfigDir: "   ",
         language: "zh",

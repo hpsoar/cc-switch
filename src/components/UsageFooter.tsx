@@ -99,7 +99,7 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
     );
   }
 
-  const usageDataList = usage.data || [];
+  const usageDataList: UsageData[] = usage.data ?? [];
 
   // 无数据时不显示
   if (usageDataList.length === 0) return null;
@@ -209,8 +209,8 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
 
       {/* 套餐列表 */}
       <div className="flex flex-col gap-3">
-        {usageDataList.map((usageData, index) => (
-          <UsagePlanItem key={index} data={usageData} />
+        {usageDataList.map((usageEntry, index) => (
+          <UsagePlanItem key={index} data={usageEntry} />
         ))}
       </div>
     </div>

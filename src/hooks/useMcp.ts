@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { AppId } from "@/lib/api/types";
-import type { McpServer } from "@/types";
+import type { McpServer, McpStatus } from "@/types";
 
 import { getMcpStatusAdapter, mcpStatusAppIds } from "@/apps/mcpAdapters";
 import { mcpApi } from "@/lib/api/mcp";
@@ -29,9 +29,14 @@ export function useAllMcpServers() {
  */
 export function useMcpStatus(appId: AppId) {
   const adapter = getMcpStatusAdapter(appId);
+  const defaultStatus: McpStatus = {
+    userConfigPath: "",
+    userConfigExists: false,
+    serverCount: 0,
+  };
   return useQuery({
     queryKey: ["mcp", "status", appId],
-    queryFn: () => adapter?.getStatus() ?? Promise.resolve({ enabled: false }),
+    queryFn: () => adapter?.getStatus() ?? Promise.resolve(defaultStatus),
   });
 }
 

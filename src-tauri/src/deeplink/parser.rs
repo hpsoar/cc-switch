@@ -4,8 +4,10 @@
 
 use super::utils::validate_url;
 use super::DeepLinkImportRequest;
+use crate::app_config::AppType;
 use crate::error::AppError;
 use std::collections::HashMap;
+use std::str::FromStr;
 use url::Url;
 
 /// Parse a ccswitch:// URL into a DeepLinkImportRequest
@@ -78,12 +80,9 @@ fn parse_provider_deeplink(
         .ok_or_else(|| AppError::InvalidInput("Missing 'app' parameter".to_string()))?
         .clone();
 
-    // Validate app type
-    if app != "claude" && app != "codex" && app != "gemini" {
-        return Err(AppError::InvalidInput(format!(
-            "Invalid app type: must be 'claude', 'codex', or 'gemini', got '{app}'"
-        )));
-    }
+    // Validate app type via unified registry
+    let app_type = AppType::from_str(&app)?;
+    let app_id = app_type.as_str().to_string();
 
     let name = params
         .get("name")
@@ -130,7 +129,7 @@ fn parse_provider_deeplink(
         version,
         resource,
         id: params.get("id").cloned(),
-        app: Some(app),
+        app: Some(app_id),
         name: Some(name),
         enabled,
         homepage,
@@ -172,12 +171,9 @@ fn parse_prompt_deeplink(
         .ok_or_else(|| AppError::InvalidInput("Missing 'app' parameter for prompt".to_string()))?
         .clone();
 
-    // Validate app type
-    if app != "claude" && app != "codex" && app != "gemini" {
-        return Err(AppError::InvalidInput(format!(
-            "Invalid app type: must be 'claude', 'codex', or 'gemini', got '{app}'"
-        )));
-    }
+    // Validate app type via unified registry
+    let app_type = AppType::from_str(&app)?;
+    let app_id = app_type.as_str().to_string();
 
     let name = params
         .get("name")
@@ -198,7 +194,7 @@ fn parse_prompt_deeplink(
         version: version.clone(),
         resource: resource.clone(),
         id: params.get("id").cloned(),
-        app: Some(app.clone()),
+        app: Some(app_id),
         name: Some(name.clone()),
         enabled,
         content: Some(content.clone()),
@@ -242,12 +238,7 @@ fn parse_mcp_deeplink(
 
     // Validate apps format
     for app in apps.split(',') {
-        let trimmed = app.trim();
-        if trimmed != "claude" && trimmed != "codex" && trimmed != "gemini" {
-            return Err(AppError::InvalidInput(format!(
-                "Invalid app in 'apps': must be 'claude', 'codex', or 'gemini', got '{trimmed}'"
-            )));
-        }
+        AppType::from_str(app.trim())?;
     }
 
     let config = params

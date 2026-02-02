@@ -26,8 +26,12 @@ vi.mock("sonner", () => ({
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, params?: Record<string, unknown>) =>
-      params ? `${key}:${JSON.stringify(params)}` : key,
+    t: (key: string, options?: Record<string, unknown>) => {
+      if (typeof options?.defaultValue === "string") {
+        return options.defaultValue as string;
+      }
+      return key;
+    },
   }),
   // 提供 initReactI18next 以兼容 i18n 初始化路径
   initReactI18next: { type: "3rdParty", init: () => {} },
@@ -406,28 +410,23 @@ type = "stdio"
       target: { value: '{"type":"stdio","command":"run"}' },
     });
 
-    const claudeCheckbox = screen.getByLabelText(
-      "mcp.unifiedPanel.apps.claude",
-    ) as HTMLInputElement;
+    const claudeCheckbox = screen.getByLabelText("Claude") as HTMLInputElement;
     expect(claudeCheckbox.checked).toBe(true);
     fireEvent.click(claudeCheckbox);
 
-    const codexCheckbox = screen.getByLabelText(
-      "mcp.unifiedPanel.apps.codex",
-    ) as HTMLInputElement;
+    const codexCheckbox = screen.getByLabelText("Codex") as HTMLInputElement;
     expect(codexCheckbox.checked).toBe(true);
     fireEvent.click(codexCheckbox);
 
-    const geminiCheckbox = screen.getByLabelText(
-      "mcp.unifiedPanel.apps.gemini",
-    ) as HTMLInputElement;
+    const geminiCheckbox = screen.getByLabelText("Gemini") as HTMLInputElement;
     expect(geminiCheckbox.checked).toBe(true);
     fireEvent.click(geminiCheckbox);
 
     const opencodeCheckbox = screen.getByLabelText(
-      "mcp.unifiedPanel.apps.opencode",
+      "OpenCode",
     ) as HTMLInputElement;
-    expect(opencodeCheckbox.checked).toBe(false);
+    expect(opencodeCheckbox.checked).toBe(true);
+    fireEvent.click(opencodeCheckbox);
 
     fireEvent.click(screen.getByText("common.add"));
 

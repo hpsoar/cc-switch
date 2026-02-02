@@ -202,7 +202,10 @@ const McpWizardModal: React.FC<McpWizardModalProps> = ({
       return;
     }
 
-    setWizardCommand(initialServer?.command ?? "");
+    const commandValue = initialServer?.command;
+    setWizardCommand(
+      Array.isArray(commandValue) ? commandValue.join(" ") : commandValue ?? "",
+    );
     const argsValue = initialServer?.args;
     setWizardArgs(Array.isArray(argsValue) ? argsValue.join("\n") : "");
     const envCandidate = initialServer?.env;

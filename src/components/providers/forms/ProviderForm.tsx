@@ -126,6 +126,16 @@ export function ProviderForm({
     isEditMode,
     initialCategory: initialData?.category,
   });
+  const normalizedCategory = category ?? "custom";
+
+  const presetEntries = useMemo(
+    () => getProviderPresetEntries(appId),
+    [appId],
+  );
+  const appFeatures = useMemo(
+    () => getProviderFormAppFeatures(appId),
+    [appId],
+  );
 
   useEffect(() => {
     setSelectedPresetId(initialData ? null : "custom");
@@ -304,15 +314,6 @@ export function ProviderForm({
       }),
     }),
     [t],
-  );
-
-  const presetEntries = useMemo(
-    () => getProviderPresetEntries(appId),
-    [appId],
-  );
-  const appFeatures = useMemo(
-    () => getProviderFormAppFeatures(appId),
-    [appId],
   );
 
   // 使用模板变量 hook (仅 Claude 模式)
@@ -654,7 +655,7 @@ export function ProviderForm({
       return;
     }
 
-    const requiredFields = getRequiredProviderFields(appId, category, {
+    const requiredFields = getRequiredProviderFields(appId, normalizedCategory, {
       apiKey,
       baseUrl,
       codexApiKey,
@@ -792,7 +793,7 @@ export function ProviderForm({
   }, [groupedPresets]);
 
   // 判断是否显示端点测速（仅官方类别不显示）
-  const shouldShowSpeedTest = category !== "official";
+  const shouldShowSpeedTest = normalizedCategory !== "official";
 
   const {
     shouldShowApiKeyLink,
@@ -987,83 +988,6 @@ export function ProviderForm({
   };
 
   const configEditorByApp: Record<AppId, ReactNode> = {
-      codex: (
-        <>
-          <CodexConfigEditor
-            authValue={codexAuth}
-            configValue={codexConfig}
-            onAuthChange={setCodexAuth}
-            onConfigChange={handleCodexConfigChange}
-            useCommonConfig={useCodexCommonConfigFlag}
-            onCommonConfigToggle={handleCodexCommonConfigToggle}
-            commonConfigSnippet={codexCommonConfigSnippet}
-            onCommonConfigSnippetChange={handleCodexCommonConfigSnippetChange}
-            commonConfigError={codexCommonConfigError}
-            authError={codexAuthError}
-            configError={codexConfigError}
-            onExtract={handleCodexExtract}
-            isExtracting={isCodexExtracting}
-          />
-          {settingsConfigErrorField}
-        </>
-      ),
-      gemini: (
-        <>
-          <GeminiConfigEditor
-            envValue={geminiEnv}
-            configValue={geminiConfig}
-            onEnvChange={handleGeminiEnvChange}
-            onConfigChange={handleGeminiConfigChange}
-            useCommonConfig={useGeminiCommonConfigFlag}
-            onCommonConfigToggle={handleGeminiCommonConfigToggle}
-            commonConfigSnippet={geminiCommonConfigSnippet}
-            onCommonConfigSnippetChange={handleGeminiCommonConfigSnippetChange}
-            commonConfigError={geminiCommonConfigError}
-            envError={envError}
-            configError={geminiConfigError}
-            onExtract={handleGeminiExtract}
-            isExtracting={isGeminiExtracting}
-          />
-          {settingsConfigErrorField}
-        </>
-      ),
-      opencode: (
-        <>
-          <OpenCodeConfigEditor
-            providerConfigValue={providerConfigJson}
-            onProviderConfigChange={handleOpenCodeConfigChangeWithSync}
-            configError={configError}
-            useCommonConfig={useOpenCodeCommonConfigFlag}
-            onCommonConfigToggle={handleOpenCodeCommonConfigToggle}
-            commonConfigSnippet={opencodeCommonConfigSnippet}
-            onCommonConfigSnippetChange={handleOpenCodeCommonConfigSnippetChange}
-            commonConfigError={opencodeCommonConfigError}
-            onExtract={handleOpenCodeExtract}
-            isExtracting={isOpenCodeExtracting}
-            onClearCommonConfigError={clearOpenCodeCommonConfigError}
-          />
-          {settingsConfigErrorField}
-        </>
-      ),
-      claude: (
-        <>
-          <CommonConfigEditor
-            value={form.watch("settingsConfig")}
-            onChange={(value) => form.setValue("settingsConfig", value)}
-            useCommonConfig={useCommonConfig}
-            onCommonConfigToggle={handleCommonConfigToggle}
-            commonConfigSnippet={commonConfigSnippet}
-            onCommonConfigSnippetChange={handleCommonConfigSnippetChange}
-            commonConfigError={commonConfigError}
-            onEditClick={() => setIsCommonConfigModalOpen(true)}
-            isModalOpen={isCommonConfigModalOpen}
-            onModalClose={() => setIsCommonConfigModalOpen(false)}
-            onExtract={handleClaudeExtract}
-            isExtracting={isClaudeExtracting}
-          />
-          {settingsConfigErrorField}
-        </>
-      ),
     claude: (
       <>
         <CommonConfigEditor
@@ -1079,6 +1003,64 @@ export function ProviderForm({
           onModalClose={() => setIsCommonConfigModalOpen(false)}
           onExtract={handleClaudeExtract}
           isExtracting={isClaudeExtracting}
+        />
+        {settingsConfigErrorField}
+      </>
+    ),
+    codex: (
+      <>
+        <CodexConfigEditor
+          authValue={codexAuth}
+          configValue={codexConfig}
+          onAuthChange={setCodexAuth}
+          onConfigChange={handleCodexConfigChange}
+          useCommonConfig={useCodexCommonConfigFlag}
+          onCommonConfigToggle={handleCodexCommonConfigToggle}
+          commonConfigSnippet={codexCommonConfigSnippet}
+          onCommonConfigSnippetChange={handleCodexCommonConfigSnippetChange}
+          commonConfigError={codexCommonConfigError}
+          authError={codexAuthError}
+          configError={codexConfigError}
+          onExtract={handleCodexExtract}
+          isExtracting={isCodexExtracting}
+        />
+        {settingsConfigErrorField}
+      </>
+    ),
+    gemini: (
+      <>
+        <GeminiConfigEditor
+          envValue={geminiEnv}
+          configValue={geminiConfig}
+          onEnvChange={handleGeminiEnvChange}
+          onConfigChange={handleGeminiConfigChange}
+          useCommonConfig={useGeminiCommonConfigFlag}
+          onCommonConfigToggle={handleGeminiCommonConfigToggle}
+          commonConfigSnippet={geminiCommonConfigSnippet}
+          onCommonConfigSnippetChange={handleGeminiCommonConfigSnippetChange}
+          commonConfigError={geminiCommonConfigError}
+          envError={envError}
+          configError={geminiConfigError}
+          onExtract={handleGeminiExtract}
+          isExtracting={isGeminiExtracting}
+        />
+        {settingsConfigErrorField}
+      </>
+    ),
+    opencode: (
+      <>
+        <OpenCodeConfigEditor
+          providerConfigValue={providerConfigJson}
+          onProviderConfigChange={handleOpenCodeConfigChangeWithSync}
+          configError={configError}
+          useCommonConfig={useOpenCodeCommonConfigFlag}
+          onCommonConfigToggle={handleOpenCodeCommonConfigToggle}
+          commonConfigSnippet={opencodeCommonConfigSnippet}
+          onCommonConfigSnippetChange={handleOpenCodeCommonConfigSnippetChange}
+          commonConfigError={opencodeCommonConfigError}
+          onExtract={handleOpenCodeExtract}
+          isExtracting={isOpenCodeExtracting}
+          onClearCommonConfigError={clearOpenCodeCommonConfigError}
         />
         {settingsConfigErrorField}
       </>

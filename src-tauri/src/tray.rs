@@ -140,15 +140,20 @@ fn append_provider_section<'a>(
 
 /// 处理供应商托盘事件
 pub fn handle_provider_tray_event(app: &tauri::AppHandle, event_id: &str) -> bool {
-    for section in build_tray_sections().iter() {
+    let sections = build_tray_sections();
+    for section in sections {
         if let Some(provider_id) = event_id.strip_prefix(section.prefix.as_str()) {
-            log::info!("切换到{}供应商: {provider_id}", section.log_name);
+            let log_name = section.log_name.clone();
+            log::info!("切换到{}供应商: {provider_id}", log_name);
+
             let app_handle = app.clone();
             let provider_id = provider_id.to_string();
-            let app_type = section.app_type.clone();
+            let app_type = section.app_type;
+            let log_name_for_err = log_name.clone();
+
             tauri::async_runtime::spawn_blocking(move || {
                 if let Err(e) = switch_provider_internal(&app_handle, app_type, provider_id) {
-                    log::error!("切换{}供应商失败: {e}", section.log_name);
+                    log::error!("切换{}供应商失败: {e}", log_name_for_err);
                 }
             });
             return true;

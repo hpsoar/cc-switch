@@ -71,7 +71,9 @@ const UnifiedMcpPanel = React.forwardRef<
 
     // First filter by app
     if (filterApp !== "all") {
-      entries = entries.filter(([_, server]) => server.apps[filterApp]);
+      entries = entries.filter(
+        ([_, server]) => Boolean(server.apps?.[filterApp]),
+      );
     }
 
     // Then filter by search query
@@ -103,16 +105,15 @@ const UnifiedMcpPanel = React.forwardRef<
       return acc;
     }, {} as Record<AppId, number>);
     serverEntries.forEach(([_, server]) => {
+      const apps = server.apps ?? {};
       appIds.forEach((appId) => {
-        if (server.apps[appId]) {
+        if (apps[appId]) {
           counts[appId] += 1;
         }
       });
     });
     // Override OpenCode count with the actual count from config file
-    if (openCodeStatus) {
-      counts.opencode = openCodeStatus.serverCount;
-    }
+    counts.opencode = openCodeStatus?.serverCount ?? counts.opencode;
     return counts;
   }, [serverEntries, openCodeStatus]);
 
@@ -413,7 +414,7 @@ const UnifiedMcpListItem: React.FC<UnifiedMcpListItemProps> = ({
             </label>
             <Switch
               id={`${id}-${appId}`}
-              checked={server.apps[appId]}
+              checked={Boolean(server.apps?.[appId])}
               onCheckedChange={(checked: boolean) =>
                 onToggleApp(id, appId, checked)
               }

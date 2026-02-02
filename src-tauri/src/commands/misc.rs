@@ -391,7 +391,7 @@ fn scan_cli_version(tool: &str) -> (Option<String>, Option<String>) {
 
 fn wsl_distro_for_tool(tool: &str) -> Option<String> {
     let app = AppType::from_str(tool).ok()?;
-    let override_dir = crate::settings::get_override_dir_for_app(&app)?;
+    let override_dir = crate::settings::get_override_dir(&app)?;
 
     wsl_distro_from_path(&override_dir)
 }

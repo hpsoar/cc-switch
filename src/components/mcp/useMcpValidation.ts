@@ -3,6 +3,15 @@ import { validateToml, tomlToMcpServer } from "@/utils/tomlUtils";
 
 export function useMcpValidation() {
   const { t } = useTranslation();
+  const hasCommandValue = (value: unknown): boolean => {
+    if (typeof value === "string") {
+      return value.trim().length > 0;
+    }
+    if (Array.isArray(value)) {
+      return value.some((segment) => String(segment ?? "").trim().length > 0);
+    }
+    return false;
+  };
 
   // JSON basic validation (returns i18n text)
   const validateJson = (text: string): string => {
@@ -38,7 +47,7 @@ export function useMcpValidation() {
     if (value.trim()) {
       try {
         const server = tomlToMcpServer(value);
-        if (server.type === "stdio" && !server.command?.trim()) {
+        if (server.type === "stdio" && !hasCommandValue(server.command)) {
           return t("mcp.error.commandRequired");
         }
         if (
@@ -73,7 +82,7 @@ export function useMcpValidation() {
           }
 
           const typ = (obj as any)?.type;
-          if (typ === "stdio" && !(obj as any)?.command?.trim()) {
+          if (typ === "stdio" && !hasCommandValue((obj as any)?.command)) {
             return t("mcp.error.commandRequired");
           }
           if ((typ === "http" || typ === "sse") && !(obj as any)?.url?.trim()) {

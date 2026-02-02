@@ -121,7 +121,7 @@ pub async fn get_skills_for_app(
     app_state: State<'_, AppState>,
 ) -> Result<Vec<Skill>, String> {
     // 新版本不再区分应用，统一返回所有技能
-    let _ = parse_app_type(&app)?; // 验证 app 参数有效
+    AppType::from_str(&app).map_err(|e| e.to_string())?; // 验证 app 参数有效
     get_skills(service, app_state).await
 }
 
@@ -143,7 +143,7 @@ pub async fn install_skill_for_app(
     service: State<'_, SkillServiceState>,
     app_state: State<'_, AppState>,
 ) -> Result<bool, String> {
-    let app_type = parse_app_type(&app)?;
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
 
     // 先获取技能信息
     let repos = app_state.db.get_skill_repos().map_err(|e| e.to_string())?;
@@ -193,7 +193,7 @@ pub fn uninstall_skill_for_app(
     directory: String,
     app_state: State<'_, AppState>,
 ) -> Result<bool, String> {
-    let _ = parse_app_type(&app)?; // 验证参数
+    AppType::from_str(&app).map_err(|e| e.to_string())?; // 验证参数
 
     // 通过 directory 找到对应的 skill id
     let skills = SkillService::get_all_installed(&app_state.db).map_err(|e| e.to_string())?;

@@ -15,7 +15,9 @@ impl Database {
         let conn = lock_conn!(self.conn);
         let enabled_columns = MCP_ENABLED_COLUMNS.join(", ");
         let query = format!(
-            \"SELECT id, name, server_config, description, homepage, docs, tags, {enabled_columns}\n             FROM mcp_servers\n             ORDER BY name ASC, id ASC\"
+            "SELECT id, name, server_config, description, homepage, docs, tags, {enabled_columns}
+             FROM mcp_servers
+             ORDER BY name ASC, id ASC"
         );
         let mut stmt = conn
             .prepare(&query)
@@ -64,7 +66,10 @@ impl Database {
         let enabled_columns = MCP_ENABLED_COLUMNS.join(", ");
         let placeholders = vec!["?"; MCP_ENABLED_COLUMNS.len()].join(", ");
         let query = format!(
-            \"INSERT OR REPLACE INTO mcp_servers (\n            id, name, server_config, description, homepage, docs, tags,\n            {enabled_columns}\n        ) VALUES (?, ?, ?, ?, ?, ?, ?, {placeholders})\"
+            "INSERT OR REPLACE INTO mcp_servers (
+            id, name, server_config, description, homepage, docs, tags,
+            {enabled_columns}
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, {placeholders})"
         );
         let enabled_values = mcp_apps_to_bools(&server.apps);
         conn.execute(
@@ -72,14 +77,13 @@ impl Database {
             params![
                 server.id,
                 server.name,
-                serde_json::to_string(&server.server).map_err(|e| AppError::Database(format!(
-                    \"Failed to serialize server config: {e}\"
-                )))?,
+                serde_json::to_string(&server.server)
+                    .map_err(|e| AppError::Database(format!("Failed to serialize server config: {e}")))?,
                 server.description,
                 server.homepage,
                 server.docs,
                 serde_json::to_string(&server.tags)
-                    .map_err(|e| AppError::Database(format!(\"Failed to serialize tags: {e}\")))?,
+                    .map_err(|e| AppError::Database(format!("Failed to serialize tags: {e}")))?,
                 enabled_values[0],
                 enabled_values[1],
                 enabled_values[2],

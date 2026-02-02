@@ -70,6 +70,7 @@ const createSettingsFormMock = (overrides: Record<string, unknown> = {}) => ({
     minimizeToTrayOnClose: true,
     enableClaudePluginIntegration: false,
     skipClaudeOnboarding: true,
+    launchOnStartup: false,
     claudeConfigDir: "/claude",
     codexConfigDir: "/codex",
     language: "zh",
@@ -130,6 +131,7 @@ describe("useSettings hook", () => {
       minimizeToTrayOnClose: true,
       enableClaudePluginIntegration: false,
       skipClaudeOnboarding: true,
+      launchOnStartup: false,
       claudeConfigDir: "/server/claude",
       codexConfigDir: "/server/codex",
       language: "zh",
@@ -377,11 +379,12 @@ describe("useSettings hook", () => {
     expect(settingsFormMock.syncLanguage).toHaveBeenCalledWith(
       settingsFormMock.initialLanguage,
     );
-    expect(directorySettingsMock.resetAllDirectories).toHaveBeenCalledWith(
-      "/server/claude",
-      undefined,
-      undefined, // geminiConfigDir
-    );
+    expect(directorySettingsMock.resetAllDirectories).toHaveBeenCalledWith({
+      claude: "/server/claude",
+      codex: undefined,
+      gemini: undefined,
+      opencode: undefined,
+    });
     expect(metadataMock.setRequiresRestart).toHaveBeenCalledWith(false);
   });
 

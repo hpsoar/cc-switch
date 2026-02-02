@@ -71,7 +71,6 @@ vi.mock("@/lib/api", () => ({
 const createProvider = (overrides: Partial<Provider> = {}): Provider => ({
   id: "provider-1",
   name: "Test Provider",
-  app: "claude",
   settingsConfig: {},
   category: "custom",
   ...overrides,
@@ -99,7 +98,6 @@ describe("useProviderActions", () => {
     const { result } = renderHook(() => useProviderActions("claude"));
     const newProvider = {
       name: "Added Provider",
-      app: "claude",
       settingsConfig: {},
       category: "custom",
     } as Omit<Provider, "id">;
@@ -140,7 +138,7 @@ describe("useProviderActions", () => {
 
   it("does not sync plugin for non-Claude apps", async () => {
     switchMutateMock.mockResolvedValueOnce({ success: true });
-    const provider = createProvider({ id: "other", app: "codex" });
+    const provider = createProvider({ id: "other" });
     const { result } = renderHook(() => useProviderActions("codex"));
 
     await act(async () => {

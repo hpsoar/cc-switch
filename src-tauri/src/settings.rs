@@ -275,8 +275,7 @@ pub fn get_opencode_override_dir() -> Option<PathBuf> {
 pub fn get_override_dir(app_type: &AppType) -> Option<PathBuf> {
     let settings = settings_store().read().ok()?;
     let accessors = get_app_settings_accessors(app_type);
-    accessors
-        .get_config_dir(&settings)
+    (accessors.get_config_dir)(&settings)
         .as_ref()
         .map(|p| resolve_override_path(p))
 }

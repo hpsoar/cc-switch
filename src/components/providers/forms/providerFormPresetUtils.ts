@@ -68,9 +68,12 @@ export const applyProviderPresetEntry = ({
 
   const applyGeminiPreset = () => {
     const preset = entry.preset as GeminiProviderPreset;
-    const env = (preset.settingsConfig as Record<string, unknown>)?.env ?? {};
-    const config =
-      (preset.settingsConfig as Record<string, unknown>)?.config ?? {};
+    const env = (
+      (preset.settingsConfig as Record<string, unknown>)?.env ?? {}
+    ) as Record<string, unknown>;
+    const config = (
+      (preset.settingsConfig as Record<string, unknown>)?.config ?? {}
+    ) as Record<string, unknown>;
 
     resetGeminiConfig(env, config);
     form.reset({
@@ -84,9 +87,12 @@ export const applyProviderPresetEntry = ({
 
   const applyOpenCodePreset = () => {
     const preset = entry.preset as OpenCodeProviderPreset;
-    const env = (preset.settingsConfig as Record<string, unknown>)?.env ?? {};
-    const config =
-      (preset.settingsConfig as Record<string, unknown>)?.config ?? {};
+    const env = (
+      (preset.settingsConfig as Record<string, unknown>)?.env ?? {}
+    ) as Record<string, unknown>;
+    const config = (
+      (preset.settingsConfig as Record<string, unknown>)?.config ?? {}
+    ) as Record<string, unknown>;
 
     resetOpenCodeConfig(env, config);
     form.reset({
@@ -156,8 +162,16 @@ export const resetProviderFormForCustomPreset = ({
   }
 
   const resetAdapterMap: Partial<Record<AppId, () => void>> = {
-    gemini: () => resetGeminiConfig({}, {}),
-    opencode: () => resetOpenCodeConfig({}, {}),
+    gemini: () =>
+      resetGeminiConfig(
+        {} as Record<string, unknown>,
+        {} as Record<string, unknown>,
+      ),
+    opencode: () =>
+      resetOpenCodeConfig(
+        {} as Record<string, unknown>,
+        {} as Record<string, unknown>,
+      ),
   };
 
   resetAdapterMap[appId]?.();

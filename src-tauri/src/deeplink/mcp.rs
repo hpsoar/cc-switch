@@ -161,9 +161,7 @@ pub(crate) fn parse_mcp_apps(apps_str: &str) -> Result<McpApps, AppError> {
     let mut apps = McpApps::default();
 
     for app in apps_str.split(',') {
-        let app_type = AppType::from_str(app.trim()).map_err(|_| {
-            AppError::InvalidInput(format!("Invalid app in 'apps': {}", app.trim()))
-        })?;
+        let app_type = AppType::from_str(app.trim())?;
         apps.set_enabled_for(&app_type, true);
     }
 

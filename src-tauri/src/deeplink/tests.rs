@@ -44,6 +44,16 @@ fn test_parse_deeplink_with_notes() {
 }
 
 #[test]
+fn test_parse_deeplink_supports_opencode() {
+    let url = "ccswitch://v1/import?resource=provider&app=opencode&name=OpenCode&homepage=https%3A%2F%2Fopencode.dev&endpoint=https%3A%2F%2Fapi.opencode.dev&apiKey=key123";
+
+    let request = parse_deeplink_url(url).unwrap();
+
+    assert_eq!(request.app, Some("opencode".to_string()));
+    assert_eq!(request.name, Some("OpenCode".to_string()));
+}
+
+#[test]
 fn test_parse_invalid_scheme() {
     let url = "https://v1/import?resource=provider&app=claude&name=Test";
 
@@ -360,8 +370,14 @@ fn test_parse_mcp_apps() {
     assert!(!apps.codex);
     assert!(apps.gemini);
 
+    let apps = parse_mcp_apps("opencode").unwrap();
+    assert!(!apps.claude);
+    assert!(!apps.codex);
+    assert!(!apps.gemini);
+    assert!(apps.opencode);
+
     let err = parse_mcp_apps("invalid").unwrap_err();
-    assert!(err.to_string().contains("Invalid app"));
+    assert!(err.to_string().contains("Unsupported app id"));
 }
 
 #[test]

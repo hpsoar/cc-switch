@@ -63,6 +63,8 @@ const createSettingsMock = (overrides: Partial<SettingsMock> = {}) => {
       showInTray: true,
       minimizeToTrayOnClose: true,
       enableClaudePluginIntegration: false,
+      skipClaudeOnboarding: true,
+      launchOnStartup: false,
       language: "zh",
       claudeConfigDir: "/claude",
       codexConfigDir: "/codex",

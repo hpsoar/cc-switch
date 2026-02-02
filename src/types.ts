@@ -10,6 +10,14 @@ export type ProviderCategory =
 export interface ProviderMeta {
   description?: string;
   capabilities?: string[];
+  custom_endpoints?: Record<string, CustomEndpoint>;
+  usage_script?: UsageScript;
+  endpointAutoSelect?: boolean;
+  isPartner?: boolean;
+  partnerPromotionKey?: string;
+  costMultiplier?: string;
+  limitDailyUsd?: string;
+  limitMonthlyUsd?: string;
 }
 
 export interface Provider {
@@ -32,6 +40,7 @@ export interface Provider {
   iconColor?: string; // 图标颜色（Hex 格式，如 "#00A67E"）
   // 是否加入故障转移队列
   inFailoverQueue?: boolean;
+  providerKey?: string;
 }
 
 export interface AppConfig {
@@ -72,6 +81,40 @@ export interface UsageScript {
     headers?: Record<string, string>; // 请求头
     body?: any; // 请求体
   };
+}
+
+export interface UsageData {
+  planName?: string;
+  extra?: string;
+  isValid?: boolean;
+  invalidMessage?: string;
+  total?: number;
+  used?: number;
+  remaining?: number;
+  unit?: string;
+}
+
+export interface UsageResult {
+  success: boolean;
+  data?: UsageData[];
+  error?: string;
+}
+
+export interface Settings {
+  showInTray: boolean;
+  minimizeToTrayOnClose: boolean;
+  enableClaudePluginIntegration: boolean;
+  skipClaudeOnboarding: boolean;
+  launchOnStartup: boolean;
+  language?: string | null;
+  claudeConfigDir?: string;
+  codexConfigDir?: string;
+  geminiConfigDir?: string;
+  opencodeConfigDir?: string;
+  currentProviderClaude?: string | null;
+  currentProviderCodex?: string | null;
+  currentProviderGemini?: string | null;
+  currentProviderOpencode?: string | null;
 }
 
 export interface ToolTestResult {
@@ -142,6 +185,7 @@ export interface McpServerSpec {
   cwd?: string;
   url?: string;
   headers?: Record<string, string>;
+  [key: string]: unknown;
 }
 
 export interface McpServer {
@@ -152,14 +196,16 @@ export interface McpServer {
   tags?: string[];
   homepage?: string;
   docs?: string;
-  apps?: Record<AppId, boolean>;
+  apps?: Partial<Record<AppId, boolean>>;
+  enabled?: boolean;
 }
 
 export type McpServersMap = Record<string, McpServer>;
 
 export interface McpStatus {
-  enabled: boolean;
-  configPath?: string;
+  userConfigPath: string;
+  userConfigExists: boolean;
+  serverCount: number;
 }
 
 export interface McpConfigResponse {

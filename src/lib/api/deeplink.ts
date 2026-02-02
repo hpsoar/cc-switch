@@ -29,7 +29,7 @@ export interface DeepLinkImportRequest {
   description?: string;
 
   // MCP fields
-  apps?: string; // "claude,codex,gemini"
+  apps?: string; // e.g. "claude,codex,gemini,opencode"
 
   // Skill fields
   repo?: string;

@@ -47,6 +47,7 @@ const createSettings = (
   minimizeToTrayOnClose: true,
   enableClaudePluginIntegration: false,
   skipClaudeOnboarding: true,
+  launchOnStartup: false,
   claudeConfigDir: "/claude/custom",
   codexConfigDir: "/codex/custom",
   geminiConfigDir: "/gemini/custom",
@@ -264,11 +265,11 @@ describe("useDirectorySettings", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     act(() => {
-      result.current.resetAllDirectories(
-        "/server/claude",
-        "/server/codex",
-        "/server/gemini",
-      );
+      result.current.resetAllDirectories({
+        claude: "/server/claude",
+        codex: "/server/codex",
+        gemini: "/server/gemini",
+      });
     });
 
     expect(result.current.resolvedDirs.claude).toBe("/server/claude");

@@ -1,6 +1,16 @@
 import { z } from "zod";
 import { validateToml, tomlToMcpServer } from "@/utils/tomlUtils";
 
+const hasCommandValue = (value: unknown): boolean => {
+  if (typeof value === "string") {
+    return value.trim().length > 0;
+  }
+  if (Array.isArray(value)) {
+    return value.some((segment) => String(segment ?? "").trim().length > 0);
+  }
+  return false;
+};
+
 /**
  * 解析 JSON 语法错误，返回更友好的位置信息。
  */
@@ -74,7 +84,7 @@ export const tomlConfigSchema = z.string().superRefine((value, ctx) => {
 
   try {
     const server = tomlToMcpServer(value);
-    if (server.type === "stdio" && !server.command?.trim()) {
+    if (server.type === "stdio" && !hasCommandValue(server.command)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "stdio 类型需填写 command",

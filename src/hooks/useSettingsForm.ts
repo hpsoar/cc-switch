@@ -109,6 +109,7 @@ export function useSettingsForm(): UseSettingsFormResult {
       enableClaudePluginIntegration:
         data.enableClaudePluginIntegration ?? false,
       skipClaudeOnboarding: data.skipClaudeOnboarding ?? true,
+      launchOnStartup: data.launchOnStartup ?? false,
       ...buildConfigDirOverrides(data),
       language: normalizedLanguage,
     };
@@ -128,6 +129,7 @@ export function useSettingsForm(): UseSettingsFormResult {
             minimizeToTrayOnClose: true,
             enableClaudePluginIntegration: false,
             skipClaudeOnboarding: true,
+            launchOnStartup: false,
             language: readPersistedLanguage(),
           } as SettingsFormState);
 
@@ -163,6 +165,7 @@ export function useSettingsForm(): UseSettingsFormResult {
         enableClaudePluginIntegration:
           serverData.enableClaudePluginIntegration ?? false,
         skipClaudeOnboarding: serverData.skipClaudeOnboarding ?? true,
+        launchOnStartup: serverData.launchOnStartup ?? false,
         ...buildConfigDirOverrides(serverData),
         language: normalizedLanguage,
       };

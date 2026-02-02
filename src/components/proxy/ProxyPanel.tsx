@@ -73,7 +73,7 @@ export function ProxyPanel() {
   );
 
   const appLabels = appLabelMap;
-  const takeoverApps: AppId[] = appIds;
+  const takeoverApps: AppId[] = [...appIds];
 
   const handleTakeoverChange = async (appType: AppId, enabled: boolean) => {
     try {

@@ -129,7 +129,10 @@ impl Database {
             for (id, server) in servers {
                 let enabled_values = mcp_apps_to_bools(&server.apps);
                 let query = format!(
-                    \"INSERT OR REPLACE INTO mcp_servers (\n                        id, name, server_config, description, homepage, docs, tags,\n                        {enabled_columns}\n                    ) VALUES (?, ?, ?, ?, ?, ?, ?, {placeholders})\"
+                    "INSERT OR REPLACE INTO mcp_servers (
+                        id, name, server_config, description, homepage, docs, tags,
+                        {enabled_columns}
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, {placeholders})"
                 );
                 tx.execute(
                     &query,

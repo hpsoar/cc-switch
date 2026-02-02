@@ -205,7 +205,7 @@ pub async fn toggle_mcp_app(
 pub async fn import_mcp_from_apps(state: State<'_, AppState>) -> Result<usize, String> {
     let mut total = 0;
     for app in AppType::all() {
-        total += McpService::import_from_app(&state, app).unwrap_or(0);
+        total += McpService::import_from_app(&state, *app).unwrap_or(0);
     }
     Ok(total)
 }

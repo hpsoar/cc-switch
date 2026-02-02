@@ -93,7 +93,7 @@ pub struct DeepLinkImportRequest {
     pub description: Option<String>,
 
     // ============ MCP-specific fields ============
-    /// Target applications for MCP (comma-separated: "claude,codex,gemini")
+    /// Target applications for MCP (comma-separated: "claude,codex,gemini,opencode")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub apps: Option<String>,
 

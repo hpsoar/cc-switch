@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Save,
   Plus,
@@ -54,7 +54,7 @@ interface McpFormModalProps {
   onClose: () => void;
   existingIds?: string[];
   defaultFormat?: "json" | "toml";
-  defaultEnabledApps?: AppId[];
+  defaultEnabledApps?: readonly AppId[];
 }
 
 const McpFormModal: React.FC<McpFormModalProps> = ({
@@ -83,18 +83,29 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   const [formDocs, setFormDocs] = useState(initialData?.docs || "");
   const [formTags, setFormTags] = useState(initialData?.tags?.join(", ") || "");
 
-  const [enabledApps, setEnabledApps] = useState<Record<AppId, boolean>>(() => {
-    if (initialData?.apps) {
-      return { ...initialData.apps };
-    }
-    return appList.reduce(
+  const buildEnabledApps = useCallback((): Record<AppId, boolean> => {
+    const base = appList.reduce(
       (acc, app) => {
         acc[app.id] = defaultEnabledApps.includes(app.id);
         return acc;
       },
       {} as Record<AppId, boolean>,
     );
-  });
+
+    if (initialData?.apps) {
+      Object.entries(initialData.apps).forEach(([appId, value]) => {
+        if (appId in base) {
+          base[appId as AppId] = Boolean(value);
+        }
+      });
+    }
+
+    return base;
+  }, [defaultEnabledApps, initialData]);
+
+  const [enabledApps, setEnabledApps] = useState<Record<AppId, boolean>>(
+    () => buildEnabledApps(),
+  );
 
   const isEditing = !!editingId;
 
